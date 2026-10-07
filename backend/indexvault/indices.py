@@ -5,6 +5,8 @@ button in the app's Cache tab (or `data.check_ticker`) to confirm which ones
 return data, and add any other Yahoo symbol via the custom-ticker box.
 """
 
+from collections.abc import Iterable, Mapping
+
 CATALOG: dict[str, dict[str, str]] = {
     "Broad market": {
         "NIFTY 50": "^NSEI",
@@ -64,5 +66,24 @@ NAME_TO_TICKER: dict[str, str] = {n: t for t, n in TICKER_TO_NAME.items()}
 NO_VOLUME = {t for t in TICKER_TO_NAME if t.startswith("^")} | {"INR=X"}
 
 
-def display_name(ticker: str) -> str:
+def display_name(ticker: str, extra: Mapping[str, str] | None = None) -> str:
+    """Friendly name for a ticker; `extra` (ticker -> name) is checked first."""
+    if extra and ticker in extra:
+        return extra[ticker]
     return TICKER_TO_NAME.get(ticker, ticker)
+
+
+def has_volume(ticker: str) -> bool:
+    """False for indices (Yahoo "^" symbols) and FX, whose volume is always zero."""
+    return ticker not in NO_VOLUME and not ticker.startswith("^")
+
+
+def merge_catalog(custom: Iterable[Mapping[str, str]] = ()) -> dict[str, dict[str, str]]:
+    """Built-in CATALOG plus custom entries, each a mapping with "name",
+    "ticker" and "category". Built-in categories keep their order; new
+    categories follow in first-seen order. A custom entry with the same name
+    as a built-in in the same category replaces it."""
+    out = {cat: dict(items) for cat, items in CATALOG.items()}
+    for e in custom:
+        out.setdefault(e["category"], {})[e["name"]] = e["ticker"]
+    return out

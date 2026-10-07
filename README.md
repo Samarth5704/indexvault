@@ -18,7 +18,7 @@ Claude Code. It has a FastAPI backend and a hand-built HTML/CSS/JS frontend.
 | `docs/DESIGN.md` | Design system: 4 themes, tokens, typography, components, motion, chart rules |
 | `docs/PROMPTS.md` | Copy-paste prompts for each milestone, plus tips |
 | `backend/indexvault/` | **Working, tested core library** (data, cache, analytics, CLI) from the prototype |
-| `backend/tests/` | 10 passing tests |
+| `backend/tests/` | pytest suite (core, settings, catalogue) |
 | `legacy/` | The Streamlit prototype, kept as a behaviour reference only |
 
 ## Stack

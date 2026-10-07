@@ -1,9 +1,16 @@
-"""Data layer: fetch from Yahoo Finance, cache locally, update incrementally,
-resample to other frequencies and export.
+"""Data layer: fetch from a registered source, cache locally, update
+incrementally, resample to other frequencies and export.
 
-Cache layout (one CSV + one JSON per ticker):
-    data_cache/yahoo/<SAFE_TICKER>.csv
-    data_cache/yahoo/<SAFE_TICKER>.json   -> {"ticker", "requested_start", "last_update"}
+Cache layout (one CSV + one JSON per ticker, one folder per source):
+    <cache root>/yahoo/<SAFE_TICKER>.csv
+    <cache root>/yahoo/<SAFE_TICKER>.json  -> {"ticker", "requested_start", "last_update"}
+    <cache root>/_imports/<SAFE_TICKER>.csv -> original rows of user CSV imports
+Folders starting with "_" are not sources and are skipped by inventory/clear.
+
+The cache root defaults to $INDEXVAULT_CACHE or backend/data_cache and can be
+changed at runtime with `set_cache_root`. Cache reads/writes for one ticker are
+serialised with a per-(source, ticker) lock, so concurrent threads in one
+process are safe (separate processes are not coordinated).
 """
 from __future__ import annotations
 
@@ -11,15 +18,27 @@ import io
 import json
 import os
 import re
+import threading
 import zipfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
-COLUMNS = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
+from .sources import (  # noqa: F401  (re-exported for prototype-era callers)
+    COLUMNS,
+    SOURCE_INFO,
+    SOURCES,
+    available_sources,
+    clean as _clean,
+    fetch_demo as _fetch_demo,
+    fetch_yahoo as _fetch_yahoo,
+    register_source,
+    unregister_source,
+)
+
 EARLIEST = pd.Timestamp("1990-01-01")
+IMPORTS_DIR = "_imports"
 
 CACHE_ROOT = Path(
     os.environ.get(
@@ -36,11 +55,37 @@ FREQUENCIES = {
 }
 
 
+def set_cache_root(path: str | os.PathLike) -> Path:
+    """Point the cache at another folder (created lazily on first write)."""
+    global CACHE_ROOT
+    CACHE_ROOT = Path(path).expanduser().resolve()
+    return CACHE_ROOT
+
+
+def get_cache_root() -> Path:
+    return CACHE_ROOT
+
+
 # --------------------------------------------------------------------------- #
 # Cache helpers
 # --------------------------------------------------------------------------- #
+_locks: dict[tuple[str, str], threading.RLock] = {}
+_locks_guard = threading.Lock()
+
+
 def _safe(ticker: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]", "_", ticker)
+
+
+def _ticker_lock(source: str, ticker: str) -> threading.RLock:
+    with _locks_guard:
+        return _locks.setdefault((source, _safe(ticker)), threading.RLock())
+
+
+def _source_dirs() -> list[Path]:
+    if not CACHE_ROOT.exists():
+        return []
+    return sorted(p for p in CACHE_ROOT.iterdir() if p.is_dir() and not p.name.startswith("_"))
 
 
 def _paths(ticker: str, source: str) -> tuple[Path, Path]:
@@ -51,13 +96,14 @@ def _paths(ticker: str, source: str) -> tuple[Path, Path]:
 
 
 def load_cached(ticker: str, source: str = "yahoo") -> tuple[pd.DataFrame | None, dict]:
-    csv, meta = _paths(ticker, source)
-    if not csv.exists():
-        return None, {}
-    df = pd.read_csv(csv, index_col=0, parse_dates=True)
-    df.index.name = "Date"
-    info = json.loads(meta.read_text()) if meta.exists() else {}
-    return df, info
+    with _ticker_lock(source, ticker):
+        csv, meta = _paths(ticker, source)
+        if not csv.exists():
+            return None, {}
+        df = pd.read_csv(csv, index_col=0, parse_dates=True)
+        df.index.name = "Date"
+        info = json.loads(meta.read_text()) if meta.exists() else {}
+        return df, info
 
 
 def _save(ticker: str, source: str, df: pd.DataFrame, info: dict) -> None:
@@ -70,109 +116,103 @@ def _save(ticker: str, source: str, df: pd.DataFrame, info: dict) -> None:
 def cache_inventory() -> pd.DataFrame:
     """One row per cached ticker across all sources."""
     rows = []
-    if CACHE_ROOT.exists():
-        for src_dir in sorted(p for p in CACHE_ROOT.iterdir() if p.is_dir()):
-            for meta in sorted(src_dir.glob("*.json")):
-                info = json.loads(meta.read_text())
-                csv = meta.with_suffix(".csv")
-                if not csv.exists():
-                    continue
-                idx = pd.read_csv(csv, usecols=[0], index_col=0, parse_dates=True).index
-                rows.append({
-                    "Source": src_dir.name,
-                    "Ticker": info.get("ticker", meta.stem),
-                    "Rows": len(idx),
-                    "First date": idx.min().date() if len(idx) else None,
-                    "Last date": idx.max().date() if len(idx) else None,
-                    "Last updated": info.get("last_update", ""),
-                    "Size (KB)": round(csv.stat().st_size / 1024, 1),
-                })
+    for src_dir in _source_dirs():
+        for meta in sorted(src_dir.glob("*.json")):
+            info = json.loads(meta.read_text())
+            csv = meta.with_suffix(".csv")
+            if not csv.exists():
+                continue
+            idx = pd.read_csv(csv, usecols=[0], index_col=0, parse_dates=True).index
+            rows.append({
+                "Source": src_dir.name,
+                "Ticker": info.get("ticker", meta.stem),
+                "Rows": len(idx),
+                "First date": idx.min().date() if len(idx) else None,
+                "Last date": idx.max().date() if len(idx) else None,
+                "Last updated": info.get("last_update", ""),
+                "Size (KB)": round(csv.stat().st_size / 1024, 1),
+            })
     return pd.DataFrame(rows)
 
 
 def clear_cache(ticker: str | None = None, source: str | None = None) -> int:
+    """Delete cached files; returns how many were removed. Leaves CSV imports
+    (the `_imports` folder) alone, so a "csv" ticker can be rebuilt from them."""
     n = 0
-    if not CACHE_ROOT.exists():
-        return 0
-    for src_dir in CACHE_ROOT.iterdir():
-        if not src_dir.is_dir() or (source and src_dir.name != source):
+    for src_dir in _source_dirs():
+        if source and src_dir.name != source:
             continue
         pattern = f"{_safe(ticker)}.*" if ticker else "*"
         for f in src_dir.glob(pattern):
             if f.suffix in (".csv", ".json"):
-                f.unlink()
+                with _ticker_lock(src_dir.name, f.stem):
+                    f.unlink(missing_ok=True)
                 n += 1
     return n
 
 
 # --------------------------------------------------------------------------- #
-# Sources
+# CSV import source
 # --------------------------------------------------------------------------- #
-def _clean(df: pd.DataFrame) -> pd.DataFrame:
-    if df is None or df.empty:
-        return pd.DataFrame(columns=COLUMNS)
-    if isinstance(df.columns, pd.MultiIndex):
-        df = df.droplevel(-1, axis=1) if df.columns.nlevels > 1 else df
-    df = df.copy()
-    if "Adj Close" not in df.columns and "Close" in df.columns:
-        df["Adj Close"] = df["Close"]
-    if "Volume" not in df.columns:
-        df["Volume"] = 0
-    df = df[[c for c in COLUMNS if c in df.columns]]
-    idx = pd.to_datetime(df.index)
-    if getattr(idx, "tz", None) is not None:
-        idx = idx.tz_localize(None)
-    df.index = idx.normalize()
-    df.index.name = "Date"
-    df = df[~df.index.duplicated(keep="last")].sort_index()
-    df = df.dropna(subset=["Close"])
-    df = df[df["Close"] > 0]
-    return df
+_CSV_ALIASES = {
+    "date": "Date", "datetime": "Date", "timestamp": "Date",
+    "open": "Open", "high": "High", "low": "Low",
+    "close": "Close", "price": "Close", "last": "Close", "close price": "Close",
+    "adj close": "Adj Close", "adj_close": "Adj Close", "adjclose": "Adj Close",
+    "volume": "Volume", "shares traded": "Volume",
+}
 
 
-def _fetch_yahoo(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-    import yfinance as yf
+def parse_ohlcv_csv(src: str | os.PathLike | bytes, dayfirst: bool = False) -> pd.DataFrame:
+    """Read a user CSV with a date column and at least a close/price column.
 
-    raw = yf.Ticker(ticker).history(
-        start=start.strftime("%Y-%m-%d"),
-        end=(end + timedelta(days=1)).strftime("%Y-%m-%d"),
-        interval="1d",
-        auto_adjust=False,
-        actions=False,
-    )
-    return _clean(raw)
-
-
-def _fetch_demo(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-    """Deterministic synthetic OHLCV (regime-switching random walk) for offline use."""
-    seed = sum(ord(c) * (i + 1) for i, c in enumerate(ticker)) % (2**32)
-    rng = np.random.default_rng(seed)
-    days = pd.bdate_range("2000-01-03", pd.Timestamp.today().normalize())
-    n = len(days)
-    drift = rng.uniform(0.07, 0.16) / 252
-    base_vol = rng.uniform(0.14, 0.26) / np.sqrt(252)
-    # volatility regimes: calm / stressed
-    regime = np.zeros(n)
-    state = 0
-    for i in range(n):
-        if rng.random() < (0.004 if state == 0 else 0.02):
-            state = 1 - state
-        regime[i] = state
-    vol = base_vol * np.where(regime == 1, 2.2, 1.0)
-    rets = drift - np.where(regime == 1, 0.0004, 0) + vol * rng.standard_t(5, n) / np.sqrt(5 / 3)
-    close = rng.uniform(800, 6000) * np.exp(np.cumsum(rets))
-    open_ = close * np.exp(rng.normal(0, vol * 0.3))
-    high = np.maximum(open_, close) * np.exp(np.abs(rng.normal(0, vol * 0.5)))
-    low = np.minimum(open_, close) * np.exp(-np.abs(rng.normal(0, vol * 0.5)))
-    volume = 0 if ticker.startswith("^") else rng.integers(1e5, 5e6, n)
-    df = pd.DataFrame(
-        {"Open": open_, "High": high, "Low": low, "Close": close, "Adj Close": close, "Volume": volume},
-        index=days,
-    )
-    return _clean(df.loc[start:end])
+    Column names are matched case-insensitively (Date, Open, High, Low, Close or
+    Price, Adj Close, Volume); the first column is used as the date if none is
+    named. Missing Open/High/Low default to Close. Numbers may contain commas.
+    Set `dayfirst=True` for DD-MM-YYYY dates.
+    """
+    raw = pd.read_csv(io.BytesIO(src) if isinstance(src, bytes) else src)
+    raw = raw.rename(columns=lambda c: _CSV_ALIASES.get(str(c).strip().lower(), str(c).strip()))
+    if "Date" not in raw.columns:
+        raw = raw.rename(columns={raw.columns[0]: "Date"})
+    if "Close" not in raw.columns:
+        raise ValueError("CSV needs a Close (or Price) column")
+    out = pd.DataFrame(index=pd.to_datetime(raw["Date"], dayfirst=dayfirst, format="mixed"))
+    for col in COLUMNS:
+        if col in raw.columns:
+            vals = raw[col].astype(str).str.replace(",", "", regex=False)
+            out[col] = pd.to_numeric(vals, errors="coerce").to_numpy()
+    for col in ("Open", "High", "Low"):
+        if col not in out.columns:
+            out[col] = out["Close"]
+    return _clean(out)
 
 
-SOURCES = {"yahoo": _fetch_yahoo, "demo": _fetch_demo}
+def _import_path(ticker: str) -> Path:
+    return CACHE_ROOT / IMPORTS_DIR / f"{_safe(ticker)}.csv"
+
+
+def _fetch_csv(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
+    path = _import_path(ticker)
+    if not path.exists():
+        raise FileNotFoundError(f"no CSV imported for {ticker!r}")
+    df = pd.read_csv(path, index_col=0, parse_dates=True)
+    return _clean(df).loc[start:end]
+
+
+register_source("csv", _fetch_csv, label="CSV import", offline=True)
+
+
+def import_csv(ticker: str, src: str | os.PathLike | bytes, dayfirst: bool = False) -> pd.DataFrame:
+    """Import a CSV as source "csv" under `ticker`, replacing any earlier import."""
+    df = parse_ohlcv_csv(src, dayfirst=dayfirst)
+    if df.empty:
+        raise ValueError("CSV contained no usable rows")
+    path = _import_path(ticker)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _ticker_lock("csv", ticker):
+        df.to_csv(path, float_format="%.6f")
+        return get_data(ticker, source="csv", refresh=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -185,14 +225,18 @@ def get_data(
     source: str = "yahoo",
     refresh: bool = False,
     use_cache: bool = True,
+    stale_after_hours: float = 3,
 ) -> pd.DataFrame:
     """Daily OHLCV for `ticker` between start and end (inclusive).
 
     Uses the local cache when possible and only downloads what is missing:
-      * newer rows since the last cached date (incremental update)
+      * newer rows since the last cached date (incremental update), once the
+        cache is older than `stale_after_hours` or 3+ business days behind
       * older rows if you ask for an earlier start than ever before (backfill)
     `refresh=True` re-downloads the full requested range.
     """
+    if source not in SOURCES:
+        raise KeyError(f"unknown source {source!r}; registered: {sorted(SOURCES)}")
     fetch = SOURCES[source]
     start = pd.Timestamp(start) if start else EARLIEST
     end = pd.Timestamp(end) if end else pd.Timestamp.today().normalize()
@@ -200,37 +244,38 @@ def get_data(
     if not use_cache:
         return fetch(ticker, start, end)
 
-    cached, info = load_cached(ticker, source)
-    if refresh or cached is None or cached.empty:
-        df = fetch(ticker, start, end)
-        if not df.empty:
-            _save(ticker, source, df, {"requested_start": str(start.date())})
-        return df.loc[start:end]
+    with _ticker_lock(source, ticker):
+        cached, info = load_cached(ticker, source)
+        if refresh or cached is None or cached.empty:
+            df = fetch(ticker, start, end)
+            if not df.empty:
+                _save(ticker, source, df, {"requested_start": str(start.date())})
+            return df.loc[start:end]
 
-    pieces = [cached]
-    req_start = pd.Timestamp(info.get("requested_start", cached.index.min()))
-    if start < req_start:  # backfill older history
-        older = fetch(ticker, start, cached.index.min() - timedelta(days=1))
-        pieces.insert(0, older)
-        req_start = start
-    last = cached.index.max()
-    today = pd.Timestamp.today().normalize()
-    try:
-        since_update = datetime.now() - datetime.fromisoformat(info.get("last_update", "1990-01-01"))
-    except ValueError:
-        since_update = timedelta(days=999)
-    stale = last < today - pd.offsets.BDay(3) or since_update > timedelta(hours=3)
-    if end > last and last < today and stale:
-        # small overlap so revised last bars get corrected
-        newer = fetch(ticker, last - timedelta(days=5), today)
-        pieces.append(newer)
+        pieces = [cached]
+        req_start = pd.Timestamp(info.get("requested_start", cached.index.min()))
+        if start < req_start:  # backfill older history
+            older = fetch(ticker, start, cached.index.min() - timedelta(days=1))
+            pieces.insert(0, older)
+            req_start = start
+        last = cached.index.max()
+        today = pd.Timestamp.today().normalize()
+        try:
+            since_update = datetime.now() - datetime.fromisoformat(info.get("last_update", "1990-01-01"))
+        except ValueError:
+            since_update = timedelta(days=999)
+        stale = last < today - pd.offsets.BDay(3) or since_update > timedelta(hours=stale_after_hours)
+        if end > last and last < today and stale:
+            # small overlap so revised last bars get corrected
+            newer = fetch(ticker, last - timedelta(days=5), today)
+            pieces.append(newer)
 
-    if len(pieces) > 1:
-        merged = pd.concat([p for p in pieces if not p.empty])
-        merged = merged[~merged.index.duplicated(keep="last")].sort_index()
-        _save(ticker, source, merged, {"requested_start": str(req_start.date())})
-        cached = merged
-    return cached.loc[start:end]
+        if len(pieces) > 1:
+            merged = pd.concat([p for p in pieces if not p.empty])
+            merged = merged[~merged.index.duplicated(keep="last")].sort_index()
+            _save(ticker, source, merged, {"requested_start": str(req_start.date())})
+            cached = merged
+        return cached.loc[start:end]
 
 
 def check_ticker(ticker: str, source: str = "yahoo") -> tuple[bool, str]:

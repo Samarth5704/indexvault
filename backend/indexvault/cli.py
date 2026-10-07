@@ -53,7 +53,7 @@ def main(argv=None):
         frames = {}
         for t in a.tickers:
             df = data.get_data(t, a.start, a.end, source=a.source)
-            print(f"{t:<24} {len(df):>6} rows  {df.index.min().date() if len(df) else '-'} → "
+            print(f"{t:<24} {len(df):>6} rows  {df.index.min().date() if len(df) else '-'} -> "
                   f"{df.index.max().date() if len(df) else '-'}")
             if not df.empty:
                 frames[display_name(t)] = data.resample(df, a.freq)
@@ -65,7 +65,7 @@ def main(argv=None):
                 out.write_bytes(data.to_csv_zip_bytes(frames))
             else:
                 next(iter(frames.values())).to_csv(out, float_format="%.4f")
-            print(f"saved → {out}")
+            print(f"saved -> {out}")
 
     elif a.cmd == "update":
         inv = data.cache_inventory()

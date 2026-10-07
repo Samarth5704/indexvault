@@ -55,7 +55,11 @@ Build Milestone 1b from docs/SPEC.md §5 on top of M1a.
   JSON serialiser (NaN -> null, numpy/date types), and in-process memoisation keyed on
   (ticker, range, params, cache mtime).
 - Percent convention (CLAUDE.md rule 4): every percentage in a response is a decimal and
-  no key contains "%". Convert from core's keys in the API layer.
+  no key contains "%". Convert from core's keys in the API layer (api/metrics.py has
+  from_core() for summary_metrics; extend the same approach to the other tables).
+- Reuse M1a: api/settings_store.SettingsStore (subscribe it to set the core cache root via
+  storage.resolve_path), api/catalog.CatalogStore, settings_store.parse_settings for
+  /settings/restore. Surface store.warnings in GET /health or GET /settings.
 - /load runs as a thread-pool job: GET /jobs/{id} for polling plus SSE at
   /jobs/{id}/stream (stdlib only, no new dependency).
 - FastAPI serves frontend/ as static files at / (a placeholder index.html is fine for now).

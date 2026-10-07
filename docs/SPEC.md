@@ -148,8 +148,16 @@ Sections, searchable, each with "Reset section":
 
 ## 4. Settings model
 Single source of truth: `api/settings.py` defines a Pydantic `Settings` model with
-defaults, descriptions and validation. Stored in `config/settings.json` (created on first
-run). Includes `schema_version` with a migration function so old files upgrade cleanly.
+defaults, descriptions and validation; `api/settings_store.py` loads, migrates and saves
+it. Stored in `config/settings.json` (created on first run). Includes `schema_version`
+with migrations so old files upgrade cleanly (the old file is kept as
+`settings.v<n>-<stamp>.json`; an unusable file is renamed `settings.invalid-<stamp>.json`,
+never deleted). `GET /settings/schema` is `Settings.model_json_schema()`.
+
+Conventions (decided in M0): percentages are decimals and no key contains `%`; metrics
+are referenced by id from `api/metrics.py` (`cagr`, `ann_vol`, `max_drawdown`, …).
+`PATCH` on a model section merges fields; on a dict section (`custom_themes`,
+`custom_palettes`, `shortcuts`) it replaces the whole dict.
 
 ```jsonc
 {
@@ -163,9 +171,12 @@ run). Includes `schema_version` with a migration function so old files upgrade c
     "density": "comfortable",       // comfortable | compact
     "radius": "md",                 // none | sm | md | lg
     "motion": "full",               // full | reduced | off
-    "sidebar": "expanded"
+    "sidebar": "expanded",          // expanded | collapsed
+    "gain_loss": "market",          // market (green/red) | colorblind (blue/red)  — DESIGN § 1.2
+    "market_pulse": true            // ticker strip under the top bar               — DESIGN § 5
   },
-  "custom_themes": {},
+  "custom_themes": {},              // name -> {base: <built-in>, tokens: {"--accent": "#…"}}
+  "custom_palettes": {},            // name -> ["#hex", …] (2–12 colours)
   "formats": {
     "number_system": "indian",      // indian | international
     "decimals": 2,
@@ -177,6 +188,7 @@ run). Includes `schema_version` with a migration function so old files upgrade c
     "cache_dir": "backend/data_cache",
     "auto_update_on_open": true,
     "stale_after_hours": 3,
+    "request_throttle_seconds": 0.5,  // pause between downloads in bulk jobs
     "default_period": "10Y",
     "default_frequency": "Daily",
     "default_series": ["^NSEI", "^NSEBANK"]
@@ -188,21 +200,26 @@ run). Includes `schema_version` with a migration function so old files upgrade c
     "ema_windows": [],
     "rolling_windows_years": [1, 3, 5, 7, 10],
     "rolling_vol_window": 63,
-    "correlation_frequency": "W",
-    "big_move_threshold": 0.05,
+    "correlation_frequency": "W",   // D | W | M (also used for beta)
+    "rolling_corr_window": 52,      // periods of correlation_frequency
+    "big_move_threshold": 0.05,     // also the Data Health big-move threshold
+    "quality_gap_days": 5,
     "drawdown_table_size": 5,
     "trailing_periods": ["1M","3M","6M","YTD","1Y","3Y","5Y","10Y"],
     "target_cagr": 0.12,
-    "kpi_cards": ["End level","CAGR %","Annual volatility %","Max drawdown %","Sharpe","% from 52w high"],
-    "compare_metrics": ["CAGR %","Annual volatility %","Sharpe","Sortino","Max drawdown %","Calmar"]
+    "kpi_cards": ["end_level","cagr","ann_vol","max_drawdown","sharpe","pct_from_52w_high"],
+    "compare_metrics": ["cagr","ann_vol","sharpe","sortino","max_drawdown","calmar"]
   },
-  "sip": { "amount": 10000, "day": 5, "step_up_pct": 0 },
-  "export": { "default_format": "xlsx", "presets": [], "metadata_sheet": true },
-  "dashboard": { "layout": [ /* {widget, x, y, w, h, config} */ ] },
-  "shortcuts": { "palette": "mod+k", "toggle_theme": "mod+shift+l", "..." : "..." }
+  "sip": { "amount": 10000, "day": 5, "step_up": 0.0, "sensitivity_min_months": 12 },
+  "export": { "default_format": "xlsx", "presets": [], "metadata_sheet": true,
+              "excel_header_colour": "#1c5cab", "excel_freeze_panes": true },
+  "dashboard": { "layout": [ /* {id, widget, x, y, w, h, config} */ ] },
+  "shortcuts": { "palette": "mod+k", "toggle_theme": "mod+shift+l",
+                 "toggle_sidebar": "mod+b", "focus_series_picker": "/" }
 }
 ```
-`config/catalog.json` holds `custom_indices` and `watchlists`.
+`config/catalog.json` holds `custom_indices` (`{id, name, ticker, category, source}`) and
+`watchlists` (`{id, name, tickers}`), managed by `api/catalog.py`.
 
 ---
 

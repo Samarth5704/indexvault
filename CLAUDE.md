@@ -25,7 +25,8 @@ Propose it, explain why, and wait.
 ## Layout
 ```
 backend/
-  indexvault/      core library — pure Python, NO web code (data, analytics, indices, cli)
+  indexvault/      core library — pure Python, NO web code
+                   (data, sources, analytics, indicators, sip, indices, cli)
   api/             FastAPI app: routers, schemas, settings service
   tests/           pytest — core + API tests
 frontend/
@@ -73,11 +74,15 @@ containing `^` (e.g. `"^NSEI"`).
 ```powershell
 cd backend
 py -m venv .venv                                              # once
-.venv\Scripts\python -m pip install -r requirements.txt       # once / after changes
+.venv\Scripts\python -m pip install -r requirements.lock       # once / after changes (exact pins)
 .venv\Scripts\python -m uvicorn api.main:app --reload --port 8000   # app at http://localhost:8000
 .venv\Scripts\python -m pytest -q                             # tests
 .venv\Scripts\python -m indexvault.cli list                   # CLI
 ```
+
+Dependencies: `requirements.txt` holds the loose ranges; `requirements.lock` the exact
+versions verified on Sam's machine. After changing requirements.txt, install it, run the
+tests, then regenerate the lock (see the header of requirements.lock).
 
 ## Data caveats (surface these in the UI where relevant)
 - Yahoo index levels are price indices (no dividends); TRI is ~1–1.5% p.a. higher.
