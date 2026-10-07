@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/data_cache/
+config/*.json
+exports/
+*.xlsx
+*.zip
+.DS_Store
+*.egg-info/
+.coverage
+htmlcov/
+.vscode/
+.idea/
+Thumbs.db
+.claude/settings.local.json
