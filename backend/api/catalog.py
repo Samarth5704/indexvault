@@ -84,6 +84,12 @@ class CatalogStore:
                 return self.load()
             return self._data.model_copy(deep=True)
 
+    def replace(self, data: CatalogFile | dict) -> CatalogFile:
+        """Replace the whole catalogue (used by backup restore)."""
+        with self._lock:
+            self._commit(data if isinstance(data, CatalogFile) else CatalogFile.model_validate(data))
+            return self.get()
+
     # -- custom indices ---------------------------------------------------- #
     def upsert_index(self, id: str, data: dict) -> CustomIndex:
         """Create or replace the custom index `id`."""

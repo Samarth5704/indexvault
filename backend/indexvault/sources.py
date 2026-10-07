@@ -93,7 +93,8 @@ def fetch_demo(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFr
     """Deterministic synthetic OHLCV (regime-switching random walk) for offline use."""
     seed = sum(ord(c) * (i + 1) for i, c in enumerate(ticker)) % (2**32)
     rng = np.random.default_rng(seed)
-    days = pd.bdate_range("2000-01-03", pd.Timestamp.today().normalize())
+    days = pd.date_range("2000-01-03", pd.Timestamp.today().normalize(), freq="D")
+    days = days[days.dayofweek < 5]  # = bdate_range, which is ~100x slower on pandas 3
     n = len(days)
     drift = rng.uniform(0.07, 0.16) / 252
     base_vol = rng.uniform(0.14, 0.26) / np.sqrt(252)

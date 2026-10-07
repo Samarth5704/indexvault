@@ -19,7 +19,6 @@ import json
 import os
 import re
 import threading
-import zipfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -93,6 +92,12 @@ def _paths(ticker: str, source: str) -> tuple[Path, Path]:
     d.mkdir(parents=True, exist_ok=True)
     s = _safe(ticker)
     return d / f"{s}.csv", d / f"{s}.json"
+
+
+def cache_file(ticker: str, source: str = "yahoo") -> Path:
+    """Path of the cached CSV for a ticker (may not exist). Its mtime changes
+    whenever the cache for that ticker is written."""
+    return CACHE_ROOT / source / f"{_safe(ticker)}.csv"
 
 
 def load_cached(ticker: str, source: str = "yahoo") -> tuple[pd.DataFrame | None, dict]:
@@ -218,6 +223,37 @@ def import_csv(ticker: str, src: str | os.PathLike | bytes, dayfirst: bool = Fal
 # --------------------------------------------------------------------------- #
 # Public API
 # --------------------------------------------------------------------------- #
+def _requested_start(cached: pd.DataFrame, info: dict) -> pd.Timestamp:
+    return pd.Timestamp(info.get("requested_start", cached.index.min()))
+
+
+def _wants_newer(cached: pd.DataFrame, info: dict, end: pd.Timestamp, stale_after_hours: float) -> bool:
+    last = cached.index.max()
+    today = pd.Timestamp.today().normalize()
+    try:
+        since_update = datetime.now() - datetime.fromisoformat(info.get("last_update", "1990-01-01"))
+    except ValueError:
+        since_update = timedelta(days=999)
+    stale = last < today - pd.offsets.BDay(3) or since_update > timedelta(hours=stale_after_hours)
+    return end > last and last < today and stale
+
+
+def needs_fetch(
+    cached: pd.DataFrame | None,
+    info: dict,
+    start: str | date | None = None,
+    end: str | date | None = None,
+    stale_after_hours: float = 3,
+) -> bool:
+    """Would `get_data` with these arguments contact the source? Lets callers
+    that keep their own in-memory copy of the cache skip the CSV read."""
+    if cached is None or cached.empty:
+        return True
+    start = pd.Timestamp(start) if start else EARLIEST
+    end = pd.Timestamp(end) if end else pd.Timestamp.today().normalize()
+    return start < _requested_start(cached, info) or _wants_newer(cached, info, end, stale_after_hours)
+
+
 def get_data(
     ticker: str,
     start: str | date | None = None,
@@ -253,21 +289,15 @@ def get_data(
             return df.loc[start:end]
 
         pieces = [cached]
-        req_start = pd.Timestamp(info.get("requested_start", cached.index.min()))
+        req_start = _requested_start(cached, info)
         if start < req_start:  # backfill older history
             older = fetch(ticker, start, cached.index.min() - timedelta(days=1))
             pieces.insert(0, older)
             req_start = start
-        last = cached.index.max()
-        today = pd.Timestamp.today().normalize()
-        try:
-            since_update = datetime.now() - datetime.fromisoformat(info.get("last_update", "1990-01-01"))
-        except ValueError:
-            since_update = timedelta(days=999)
-        stale = last < today - pd.offsets.BDay(3) or since_update > timedelta(hours=stale_after_hours)
-        if end > last and last < today and stale:
+        if _wants_newer(cached, info, end, stale_after_hours):
             # small overlap so revised last bars get corrected
-            newer = fetch(ticker, last - timedelta(days=5), today)
+            last = cached.index.max()
+            newer = fetch(ticker, last - timedelta(days=5), pd.Timestamp.today().normalize())
             pieces.append(newer)
 
         if len(pieces) > 1:
@@ -313,57 +343,10 @@ def resample(df: pd.DataFrame, freq: str, add_returns: bool = True) -> pd.DataFr
     return out
 
 
-# --------------------------------------------------------------------------- #
-# Export
-# --------------------------------------------------------------------------- #
-def _sheet_name(name: str, used: set[str]) -> str:
-    s = re.sub(r"[\[\]\*\?/\\:]", "", name)[:31] or "Sheet"
-    base, i = s, 2
-    while s in used:
-        s = f"{base[:28]}_{i}"
-        i += 1
-    used.add(s)
-    return s
-
-
-def to_excel_bytes(sheets: dict[str, pd.DataFrame]) -> bytes:
-    """Write several DataFrames to one formatted .xlsx workbook."""
-    from openpyxl.styles import Alignment, Font, PatternFill
-    from openpyxl.utils import get_column_letter
-
-    buf = io.BytesIO()
-    used: set[str] = set()
-    with pd.ExcelWriter(buf, engine="openpyxl") as xw:
-        for name, frame in sheets.items():
-            sname = _sheet_name(name, used)
-            frame = frame.copy()
-            if isinstance(frame.index, pd.DatetimeIndex):
-                frame.index = frame.index.date
-            frame.to_excel(xw, sheet_name=sname)
-            ws = xw.sheets[sname]
-            ws.freeze_panes = "B2"
-            head_fill = PatternFill("solid", fgColor="1C5CAB")
-            for cell in ws[1]:
-                cell.font = Font(bold=True, color="FFFFFF")
-                cell.fill = head_fill
-                cell.alignment = Alignment(horizontal="center")
-            for col_idx, col in enumerate(ws.columns, start=1):
-                width = max(len(str(c.value)) if c.value is not None else 0 for c in list(col)[:200])
-                ws.column_dimensions[get_column_letter(col_idx)].width = min(max(width + 2, 10), 40)
-                for c in list(col)[1:]:
-                    if isinstance(c.value, float):
-                        c.number_format = "#,##0.00"
-    return buf.getvalue()
-
-
-def to_csv_zip_bytes(frames: dict[str, pd.DataFrame]) -> bytes:
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        for name, frame in frames.items():
-            z.writestr(f"{_safe(name)}.csv", frame.to_csv(float_format="%.4f"))
-    return buf.getvalue()
-
-
 def combine_close(frames: dict[str, pd.DataFrame], column: str = "Close") -> pd.DataFrame:
     """Wide table: one column per ticker, aligned on dates (outer join)."""
     return pd.DataFrame({k: v[column] for k, v in frames.items() if not v.empty}).sort_index()
+
+
+# Re-exported so `data.to_excel_bytes` etc. keep working for prototype-era callers.
+from .export import to_csv_zip_bytes, to_excel_bytes  # noqa: E402,F401

@@ -205,6 +205,7 @@ are referenced by id from `api/metrics.py` (`cagr`, `ann_vol`, `max_drawdown`, �
     "big_move_threshold": 0.05,     // also the Data Health big-move threshold
     "quality_gap_days": 5,
     "drawdown_table_size": 5,
+    "histogram_bins": 50,
     "trailing_periods": ["1M","3M","6M","YTD","1Y","3Y","5Y","10Y"],
     "target_cagr": 0.12,
     "kpi_cards": ["end_level","cagr","ann_vol","max_drawdown","sharpe","pct_from_52w_high"],
@@ -234,7 +235,8 @@ All responses JSON unless a file. Dates ISO `YYYY-MM-DD`. Errors:
 | `GET /settings/schema` | JSON schema with descriptions — the Settings UI renders forms from it |
 | `GET /settings/backup` · `POST /settings/restore` | full backup / restore |
 | `GET /catalog` | built-in + custom indices, grouped; watchlists |
-| `POST/PUT/DELETE /catalog/indices/{id}` · `.../watchlists/{id}` | manage custom entries |
+| `POST/PUT/DELETE /catalog/indices/{id}` · `.../watchlists/{id}` | manage custom entries (POST = create, 409 if it exists; PUT = upsert) |
+| `PUT /catalog/watchlists/order` | body `{ids}` → reorder watchlists |
 | `GET /series/{ticker}?start&end&freq&columns` | OHLCV (+ derived columns) as `{columns, rows}` |
 | `POST /load` | body `{tickers, start, end, refresh}` → job id |
 | `GET /jobs/{id}` (or SSE `GET /jobs/{id}/stream`) | per-ticker progress / errors |
@@ -247,11 +249,13 @@ All responses JSON unless a file. Dates ISO `YYYY-MM-DD`. Errors:
 | `GET /analytics/seasonality?ticker` · `/weekday?ticker` | seasonality |
 | `GET /analytics/quality?tickers` · `/big-moves?ticker&threshold` | data health |
 | `POST /export` | `{tickers, start, end, freq, columns, format, options}` → file download |
-| `GET /cache` · `POST /cache/update` · `DELETE /cache/{source}/{ticker}` · `DELETE /cache` | cache mgmt |
+| `GET /cache` · `POST /cache/update` · `DELETE /cache/{source}/{ticker}` · `DELETE /cache?confirm=true` | cache mgmt (`/cache/update` returns a job) |
+| `POST /import/csv?ticker&dayfirst` | raw CSV body (no multipart dependency) → stored as source `csv` |
 | `GET /tickers/check?source` | catalogue health check |
 
 Analytics endpoints read parameter defaults from settings; query params override.
 Heavy calls are memoised in-process keyed on (ticker, range, cache mtime).
+Full response shapes: `docs/API.md`. Interactive docs: `/api/docs`.
 
 ---
 

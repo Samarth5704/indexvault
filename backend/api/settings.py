@@ -146,6 +146,7 @@ class Analytics(Section):
     big_move_threshold: float = Field(0.05, gt=0, le=0.5, description="Daily move (decimal) flagged as a big move.")
     quality_gap_days: int = Field(5, ge=2, le=60, description="Calendar-day gap counted as a hole in the data.")
     drawdown_table_size: int = Field(5, ge=1, le=50, description="Rows in the worst-drawdowns table.")
+    histogram_bins: int = Field(50, ge=10, le=200, description="Bins in the daily-return histogram.")
     trailing_periods: Annotated[list[PeriodLabel], AfterValidator(_unique)] = Field(
         default_factory=lambda: ["1M", "3M", "6M", "YTD", "1Y", "3Y", "5Y", "10Y"], min_length=1, max_length=12,
         description="Trailing-return periods, e.g. 1M, 3Y, YTD.")

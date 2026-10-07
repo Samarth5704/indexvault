@@ -354,7 +354,7 @@ def data_quality(df: pd.DataFrame, has_volume: bool = True,
     longest_stale = stale.groupby((stale == 0).cumsum()).sum().max()
     ohlc_bad = ((df["High"] < df[["Open", "Close"]].max(axis=1) - 1e-6) |
                 (df["Low"] > df[["Open", "Close"]].min(axis=1) + 1e-6)).sum()
-    bdays = len(pd.bdate_range(close.index[0], close.index[-1]))
+    bdays = int(np.busday_count(close.index[0].date(), (close.index[-1] + pd.Timedelta(days=1)).date()))
     return {
         "Rows": len(df),
         "First date": close.index[0].date(),
