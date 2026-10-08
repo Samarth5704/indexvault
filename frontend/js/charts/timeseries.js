@@ -18,7 +18,8 @@ export function isoTime(t) {
  * createTimeChart(container, {height, valueFormat})
  * valueFormat(v) formats the price axis and crosshair label (default: number).
  * Series defs: {id, type: "line"|"area"|"candle"|"underwater", data, colour, title,
- *               dashed, width, markers: [{time, position, shape, colour, text}]}
+ *               dashed, width, markers: [{time, position, shape, colour, text}],
+ *               priceLines: [{price, title, colour}]}
  */
 export async function createTimeChart(container, { height = 320, valueFormat = (v) => format.number(v) } = {}) {
   const LW = await lightweight();
@@ -70,6 +71,10 @@ export async function createTimeChart(container, { height = 320, valueFormat = (
       const [kind, opts] = seriesOptions(def, t);
       const api = chart.addSeries(kind, opts);
       api.setData(def.data);
+      for (const pl of def.priceLines || []) {
+        api.createPriceLine({ price: pl.price, title: pl.title || "", color: resolveColour(pl.colour) || t.text2,
+          lineWidth: 1, lineStyle: LW.LineStyle.Dashed, axisLabelVisible: true });
+      }
       const markers = def.markers?.length ? LW.createSeriesMarkers(api, def.markers.map((m) => ({
         time: m.time, position: m.position, shape: m.shape, text: m.text || "",
         color: resolveColour(m.colour) || t.text2,

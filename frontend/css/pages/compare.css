@@ -1,0 +1,24 @@
+/* Compare (SPEC § 3.4) and Rolling returns (§ 3.5) */
+
+.compare-controls {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3) var(--sp-5);
+  padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4);
+}
+.inline-field { gap: var(--sp-1); }
+.inline-field .select { min-width: 150px; }
+.num-input { width: 96px; }
+.range-hint { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; color: var(--text-2); font-size: var(--fs-sm); padding-bottom: var(--sp-1); }
+.series-note { margin-bottom: var(--sp-3); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-2); font-size: var(--fs-sm); }
+.info-tip { display: inline-flex; vertical-align: middle; color: var(--text-muted); cursor: help; }
+.info-tip:hover, .info-tip:focus-visible { color: var(--accent); }
+
+.insights { padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); }
+.insights .section-title { margin-bottom: var(--sp-2); }
+.insight-list { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; font-size: var(--fs-md); }
+.insight-list li { display: flex; align-items: baseline; gap: var(--sp-2); }
+.insight-list .chip-dot { flex: none; transform: translateY(-1px); }
+
+@media (max-width: 767px) {
+  .compare-controls { padding: var(--sp-3); }
+  .inline-field, .inline-field .select { width: 100%; }
+}

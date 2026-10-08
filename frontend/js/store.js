@@ -57,7 +57,14 @@ export function setSelection(patch) {
 export function addSeries(ticker) {
   const { series } = selection();
   if (series.includes(ticker) || series.length >= MAX_SERIES) return false;
-  setSelection({ series: [...series, ticker] });
+  // Insert at the position of the slot it will get (the lowest free one), so the
+  // URL order mirrors colour slots and a reload/shared link shows the same colours.
+  syncSlots(series);
+  const used = new Set(slots.values());
+  let free = 0;
+  while (used.has(free)) free++;
+  const at = series.filter((t) => slots.get(t) < free).length;
+  setSelection({ series: [...series.slice(0, at), ticker, ...series.slice(at)] });
   rememberRecent(ticker);
   return true;
 }
@@ -66,10 +73,36 @@ export function removeSeries(ticker) {
   setSelection({ series: selection().series.filter((t) => t !== ticker) });
 }
 
-/** CSS colour for a series by its selection order (stable slot, never cycled). */
+// Colour slots (DESIGN § 7): a series keeps its slot for as long as it stays
+// selected, so removing one never recolours the others. New series take the
+// lowest free slot; a fresh load assigns slots in URL order. Slots 9+ are grey.
+const slots = new Map(); // ticker -> slot index
+let slotsFor = null;      // the series array the map was last synced to
+
+function syncSlots(series) {
+  if (series === slotsFor) return;
+  slotsFor = series;
+  for (const t of [...slots.keys()]) if (!series.includes(t)) slots.delete(t);
+  const used = new Set(slots.values());
+  for (const t of series) {
+    if (slots.has(t)) continue;
+    let i = 0;
+    while (used.has(i)) i++;
+    slots.set(t, i);
+    used.add(i);
+  }
+}
+
+/** Colour slot (0-based) of a selected series; null if not selected. */
+export function seriesSlot(ticker) {
+  syncSlots(selection().series);
+  return slots.has(ticker) ? slots.get(ticker) : null;
+}
+
+/** CSS colour for a series from its stable slot (never cycled; 9+ are grey). */
 export function seriesColour(ticker) {
-  const i = selection().series.indexOf(ticker);
-  return i >= 0 && i < SERIES_COLOURS ? `var(--series-${i + 1})` : "var(--series-other)";
+  const i = seriesSlot(ticker);
+  return i != null && i < SERIES_COLOURS ? `var(--series-${i + 1})` : "var(--series-other)";
 }
 
 /** API range params for the current selection: {start,end} or {period}. */

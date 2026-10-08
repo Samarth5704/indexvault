@@ -3,7 +3,7 @@
 // 1px --grid lines, no borders, first draw animates only (never on refresh).
 
 import { prefersReducedMotion } from "../dom.js";
-import { chartTokens, onThemeChange } from "./theme.js";
+import { chartTokens, onThemeChange, withAlpha } from "./theme.js";
 import { echarts } from "./vendor.js";
 
 /** createEChart(el, build(tokens) -> option, {height}) -> {update(build), png(), destroy()} */
@@ -14,13 +14,22 @@ export async function createEChart(el, build, { height = 300 } = {}) {
   let first = true;
 
   function render() {
-    const option = build(chartTokens());
+    // Builders get the chart's pixel width too, so labels can be sized to fit.
+    const option = build({ ...chartTokens(), width: inst.getWidth() || el.clientWidth });
     inst.setOption({ ...option, animation: first && !prefersReducedMotion() }, true);
     first = false;
   }
 
   render();
-  const ro = new ResizeObserver(() => inst.resize());
+  let lastWidth = 0, timer = 0;
+  const ro = new ResizeObserver(() => {
+    inst.resize();
+    const w = inst.getWidth();
+    if (Math.abs(w - lastWidth) < 24) return; // re-layout labels only on real width changes
+    lastWidth = w;
+    clearTimeout(timer);
+    timer = setTimeout(render, 120);
+  });
   ro.observe(el);
   const offTheme = onThemeChange(render);
 
@@ -30,7 +39,7 @@ export async function createEChart(el, build, { height = 300 } = {}) {
       const url = inst.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: chartTokens().surface });
       return fetch(url).then((r) => r.blob());
     },
-    destroy() { offTheme(); ro.disconnect(); inst.dispose(); },
+    destroy() { clearTimeout(timer); offTheme(); ro.disconnect(); inst.dispose(); },
   };
 }
 
@@ -52,6 +61,24 @@ const tooltip = (t, extra = {}) => ({
 });
 
 const grid = (extra = {}) => ({ left: 8, right: 16, top: 16, bottom: 8, containLabel: true, ...extra });
+
+/** "NIFTY Bank" -> "Bank" (keeps "NIFTY 50"); full names stay in tooltips and tables. */
+const shortName = (n) => n.replace(/^NIFTY\s+(?=[A-Za-z])/, "");
+
+/**
+ * Category labels sized to their real slot (t.width = chart width): horizontal and
+ * truncated with an ellipsis; vertical when slots are too narrow for a word.
+ * Short names when crowded; full names stay in tooltips and tables.
+ */
+function categoryLabels(t, names, reserved = 64) {
+  const slot = Math.max(1, (t.width - reserved) / names.length);
+  const vertical = slot < 44;
+  return {
+    ...axisStyle(t).axisLabel, interval: 0, fontFamily: t.fontUi,
+    rotate: vertical ? 90 : 0, width: vertical ? 96 : slot - 6, overflow: "truncate", ellipsis: "…",
+    formatter: (v) => (names.length > 4 || vertical ? shortName(v) : v),
+  };
+}
 
 // --------------------------------------------------------------------------
 // Builders
@@ -119,6 +146,65 @@ export function histogramOption(t, { edges, counts, normal, fmt, colour }) {
     series: [
       { name: "Days", type: "bar", data: counts, barCategoryGap: "8%", itemStyle: { color: colour, opacity: 0.85 } },
       { name: "Normal", type: "line", data: normal, smooth: true, symbol: "none", lineStyle: { color: t.text2, width: 2, type: "dashed" } },
+    ],
+  };
+}
+
+/** Correlation matrix: diverging scale fixed at −1…+1, centred at 0, values in cells. */
+export function corrMatrixOption(t, { labels, matrix }) {
+  const cells = [];
+  matrix.forEach((row, i) => row.forEach((v, j) => cells.push([j, i, v])));
+  return {
+    grid: grid({ top: 8 }),
+    tooltip: tooltip(t, { formatter: (p) => `${labels[p.value[1]]} × ${labels[p.value[0]]}<br><b>${p.value[2].toFixed(2)}</b>` }),
+    xAxis: { type: "category", data: labels, position: "top", ...axisStyle(t), splitLine: { show: false }, axisLine: { show: false },
+      axisLabel: categoryLabels(t, labels, 140) },
+    yAxis: { type: "category", data: labels, inverse: true, ...axisStyle(t), splitLine: { show: false }, axisLine: { show: false },
+      axisLabel: { ...axisStyle(t).axisLabel, fontFamily: t.fontUi } },
+    visualMap: { type: "continuous", show: false, min: -1, max: 1, inRange: { color: [t.divNeg, t.divMid, t.divPos] } },
+    series: [{
+      type: "heatmap", data: cells,
+      label: { show: labels.length <= 10, color: t.text, fontFamily: t.fontMono, fontSize: t.fontSize, formatter: (p) => p.value[2].toFixed(2) },
+      itemStyle: { borderColor: t.surface, borderWidth: 2, borderRadius: 2 },
+    }],
+  };
+}
+
+/** Risk (x) vs return (y) scatter; each point in its series' slot colour, labelled directly. */
+export function scatterOption(t, { points, fmt }) {
+  return {
+    grid: grid({ top: 24, right: 24 }),
+    tooltip: tooltip(t, { formatter: (p) => `${p.data.name}<br>Return <b>${fmt(p.data.value[1])}</b><br>Volatility <b>${fmt(p.data.value[0])}</b>` }),
+    xAxis: { type: "value", name: "Volatility", nameLocation: "middle", nameGap: 28, nameTextStyle: { color: t.muted },
+      scale: true, ...axisStyle(t), axisLabel: { ...axisStyle(t).axisLabel, formatter: (v) => fmt(v, 0) } },
+    yAxis: { type: "value", name: "CAGR", nameTextStyle: { color: t.muted }, scale: true, ...axisStyle(t),
+      axisLabel: { ...axisStyle(t).axisLabel, formatter: (v) => fmt(v, 0) } },
+    series: [{
+      type: "scatter", symbolSize: 14,
+      data: points.map((p) => ({ name: p.name, value: [p.x, p.y], itemStyle: { color: p.colour, borderColor: t.surface, borderWidth: 2 } })),
+      label: { show: points.length <= 10, position: "right", color: t.text2, fontSize: t.fontSize, formatter: (p) => p.data.name },
+      labelLayout: { hideOverlap: true },
+    }],
+  };
+}
+
+/** Box plots (min, q1, median, q3, max) per series, latest value as a dot, target as a dashed line. */
+export function boxplotOption(t, { names, boxes, colours, latest, target, fmt }) {
+  return {
+    grid: grid({ top: 24 }),
+    tooltip: tooltip(t, { trigger: "item", formatter: (p) => (p.seriesType === "boxplot"
+      ? `${names[p.dataIndex]}<br>Max ${fmt(p.data[5])}<br>75% ${fmt(p.data[4])}<br>Median <b>${fmt(p.data[3])}</b><br>25% ${fmt(p.data[2])}<br>Min ${fmt(p.data[1])}`
+      : `${names[p.dataIndex]}<br>Latest <b>${fmt(p.value)}</b>`) }),
+    xAxis: { type: "category", data: names, ...axisStyle(t), splitLine: { show: false },
+      axisLabel: categoryLabels(t, names) },
+    yAxis: { type: "value", ...axisStyle(t), axisLine: { show: false }, axisLabel: { ...axisStyle(t).axisLabel, formatter: (v) => fmt(v, 0) } },
+    series: [
+      { type: "boxplot", boxWidth: [12, 36],
+        data: boxes.map((b, i) => ({ value: b, itemStyle: { color: withAlpha(colours[i], 0.18), borderColor: colours[i], borderWidth: 1.5 } })),
+        markLine: target == null ? undefined : { silent: true, symbol: "none", label: { color: t.text2, position: "insideEndTop", formatter: `Target ${fmt(target, 0)}` },
+          lineStyle: { color: t.text2, type: "dashed" }, data: [{ yAxis: target }] } },
+      { type: "scatter", name: "Latest", symbol: "diamond", symbolSize: 10,
+        data: latest.map((v, i) => ({ value: v, itemStyle: { color: colours[i], borderColor: t.surface, borderWidth: 1 } })) },
     ],
   };
 }

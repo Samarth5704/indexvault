@@ -196,6 +196,7 @@
 .data-table th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); color: var(--text-2); font-weight: var(--fw-label); text-align: left; white-space: nowrap; }
 .data-table th, .data-table td { height: var(--row-h); padding: 0 var(--sp-3); border-bottom: 1px solid var(--border); }
 .data-table td.num { text-align: right; font-family: var(--font-mono); }
+.data-table th, .data-table td { white-space: nowrap; } /* tables scroll sideways rather than wrap names */
 .data-table th:not(:first-child) { text-align: right; }
 .data-table tbody tr:hover { background: var(--hover); }
 

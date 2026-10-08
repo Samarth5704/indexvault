@@ -93,6 +93,7 @@ def test_compare(client):
     assert body["beta"]["^NSEI"] == pytest.approx(1.0)
     assert body["correlation"]["matrix"][0][0] == pytest.approx(1.0)
     assert list(body["metrics"]["^NSEI"]) == body["metric_ids"]
+    assert [m["id"] for m in body["metric_meta"]] == body["metric_ids"] and body["metric_meta"][0]["kind"] == "pct"
     assert body["scatter"][1]["ticker"] == "^NSEBANK" and body["scatter"][1]["ann_vol"] > 0
     assert body["frequency"] == "W"
     monthly = get(client, f"/api/analytics/compare?{TWO}&{RANGE}&freq=M")

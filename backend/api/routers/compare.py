@@ -14,7 +14,7 @@ from indexvault.indices import display_name
 from ..context import AppContext, get_ctx
 from ..errors import bad_request
 from ..jsonutil import JsonableRoute, convert_record, iso_dates, series_payload
-from ..metrics import from_core
+from ..metrics import METRICS, from_core
 from .analytics import Period, Tickers, _inputs
 from .series import names
 
@@ -55,6 +55,7 @@ def compare(tickers: str = Tickers, benchmark: str | None = Query(None, descript
         "rebased": {"start": rebased.index[0], "note": REBASE_NOTE, "dates": iso_dates(rebased.index),
                     "series": {t: rebased[t].tolist() for t in tickers_}},
         "metric_ids": s.compare_metrics,
+        "metric_meta": [{"id": m, "label": METRICS[m].label, "kind": METRICS[m].kind} for m in s.compare_metrics],
         "metrics": {t: {m: v.get(m) for m in s.compare_metrics} for t, v in metrics.items()},
         "beta": {t: an.beta(closes[t], closes[benchmark], freq) for t in tickers_},
         "correlation": {"tickers": list(corr.columns), "matrix": corr.to_numpy().tolist()},

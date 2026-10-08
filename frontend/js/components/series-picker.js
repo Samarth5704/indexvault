@@ -4,7 +4,7 @@
 
 import { h, icon, nextId, onOutsideClick } from "../dom.js";
 import { fuzzyFilter } from "../fuzzy.js";
-import { addSeries, MAX_SERIES, recentSeries, removeSeries, selection, SERIES_COLOURS, seriesColour, setSelection, store } from "../store.js";
+import { addSeries, MAX_SERIES, recentSeries, removeSeries, selection, SERIES_COLOURS, seriesColour, seriesSlot, setSelection, store } from "../store.js";
 
 /** ticker -> {ticker, name, category, source} from the merged catalogue. */
 export function catalogIndex() {
@@ -37,9 +37,9 @@ export function seriesPicker({ inSheet = false } = {}) {
 
   function renderChips() {
     const idx = catalogIndex();
-    chips.replaceChildren(...selection().series.map((t, i) => {
+    chips.replaceChildren(...selection().series.map((t) => {
       const name = idx.get(t)?.name || t;
-      return h("li.chip", { title: `${name} (${t})${i >= SERIES_COLOURS ? " — beyond 8 series, shown in grey" : ""}` },
+      return h("li.chip", { title: `${name} (${t})${seriesSlot(t) >= SERIES_COLOURS ? " — beyond 8 series, shown in grey" : ""}` },
         h("span.chip-dot", { style: { background: seriesColour(t) }, "aria-hidden": "true" }),
         h("span.chip-label.truncate", name),
         h("button.chip-x", { type: "button", "aria-label": `Remove ${name}`, onclick: () => removeSeries(t) }, icon("x", { size: "sm" })));
