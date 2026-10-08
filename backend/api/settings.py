@@ -77,6 +77,14 @@ def _css_value(v: str) -> str:
     return v
 
 
+# Hints for the Settings UI (it renders forms from GET /settings/schema):
+# x-unit "pct" = stored as a decimal, shown as a percentage; x-options = allowed
+# values with labels; x-ordered = list order matters (drag to reorder).
+PCT = {"x-unit": "pct"}
+METRIC_OPTIONS = {"x-options": [{"value": m.id, "label": m.label} for m in METRICS.values()], "x-ordered": True}
+PERIOD_OPTIONS = {"x-options": [{"value": p, "label": p} for p in PERIODS if p != "Max"]}
+COLOUR = {"format": "color"}
+
 HexColour = Annotated[str, AfterValidator(_hex)]
 Slug = Annotated[str, AfterValidator(_slug)]
 MetricId = Annotated[str, AfterValidator(_metric_id)]
@@ -95,7 +103,7 @@ class Section(BaseModel):
 class Appearance(Section):
     theme: str = Field("midnight", description="Built-in theme (midnight, paper, terminal, saffron) or a custom theme name.")
     mode: Literal["light", "dark", "system"] = Field("system", description="Colour mode; 'system' follows the OS.")
-    accent: HexColour | None = Field(None, description="Accent colour override; null uses the theme's accent.")
+    accent: HexColour | None = Field(None, description="Accent colour override; null uses the theme's accent.", json_schema_extra=COLOUR)
     chart_palette: str = Field("default", description="Chart series palette: 'default' or a custom palette name.")
     font_scale: float = Field(1.0, ge=0.875, le=1.25, description="Multiplier for every font size.")
     density: Literal["comfortable", "compact"] = Field("comfortable", description="Compact shrinks padding and table rows.")
@@ -132,7 +140,7 @@ class DataSettings(Section):
 
 
 class Analytics(Section):
-    risk_free_rate: float = Field(0.065, ge=0, le=0.5, description="Annual risk-free rate (decimal) for Sharpe/Sortino.")
+    risk_free_rate: float = Field(0.065, ge=0, le=0.5, description="Annual risk-free rate (decimal) for Sharpe/Sortino.", json_schema_extra=PCT)
     trading_days: int = Field(252, ge=200, le=366, description="Trading days per year, for annualising.")
     sma_windows: Annotated[list[Annotated[int, Field(ge=2, le=1000)]], AfterValidator(_unique)] = Field(
         default_factory=lambda: [50, 200], max_length=6, description="Simple moving-average windows (days) overlaid on price charts.")
@@ -144,27 +152,27 @@ class Analytics(Section):
     rsi_window: int = Field(14, ge=2, le=200, description="Default window (bars) for RSI columns.")
     correlation_frequency: Literal["D", "W", "M"] = Field("W", description="Return frequency for correlation and beta: daily, weekly or monthly.")
     rolling_corr_window: int = Field(52, ge=5, le=520, description="Rolling-correlation window, in periods of the correlation frequency.")
-    big_move_threshold: float = Field(0.05, gt=0, le=0.5, description="Daily move (decimal) flagged as a big move.")
+    big_move_threshold: float = Field(0.05, gt=0, le=0.5, description="Daily move (decimal) flagged as a big move.", json_schema_extra=PCT)
     seasonality_min_years: int = Field(5, ge=1, le=50, description="Seasonality: months/days with fewer years of data are flagged as unreliable.")
     quality_gap_days: int = Field(5, ge=2, le=60, description="Calendar-day gap counted as a hole in the data.")
     drawdown_table_size: int = Field(5, ge=1, le=50, description="Rows in the worst-drawdowns table.")
     histogram_bins: int = Field(50, ge=10, le=200, description="Bins in the daily-return histogram.")
     trailing_periods: Annotated[list[PeriodLabel], AfterValidator(_unique)] = Field(
         default_factory=lambda: ["1M", "3M", "6M", "YTD", "1Y", "3Y", "5Y", "10Y"], min_length=1, max_length=12,
-        description="Trailing-return periods, e.g. 1M, 3Y, YTD.")
-    target_cagr: float = Field(0.12, ge=-0.5, le=1, description="Target CAGR (decimal) for rolling-return hit rates.")
+        description="Trailing-return periods, e.g. 1M, 3Y, YTD.", json_schema_extra=PERIOD_OPTIONS)
+    target_cagr: float = Field(0.12, ge=-0.5, le=1, description="Target CAGR (decimal) for rolling-return hit rates.", json_schema_extra=PCT)
     kpi_cards: Annotated[list[MetricId], AfterValidator(_unique)] = Field(
         default_factory=lambda: ["end_level", "cagr", "ann_vol", "max_drawdown", "sharpe", "pct_from_52w_high"],
-        min_length=1, max_length=12, description="KPI cards on the Analyse page, in order.")
+        min_length=1, max_length=12, description="KPI cards on the Analyse page, in order.", json_schema_extra=METRIC_OPTIONS)
     compare_metrics: Annotated[list[MetricId], AfterValidator(_unique)] = Field(
         default_factory=lambda: ["cagr", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"],
-        min_length=1, max_length=27, description="Metrics shown in the Compare table, in order.")
+        min_length=1, max_length=27, description="Metrics shown in the Compare table, in order.", json_schema_extra=METRIC_OPTIONS)
 
 
 class Sip(Section):
     amount: float = Field(10_000, gt=0, le=1e8, description="Monthly SIP amount.")
     day: int = Field(5, ge=1, le=28, description="Day of month to invest (next trading day if a holiday).")
-    step_up: float = Field(0.0, ge=0, le=1, description="Annual step-up of the SIP amount (decimal, 0.10 = +10%/yr).")
+    step_up: float = Field(0.0, ge=0, le=1, description="Annual step-up of the SIP amount (decimal, 0.10 = +10%/yr).", json_schema_extra=PCT)
     sensitivity_min_months: int = Field(12, ge=1, le=240, description="Shortest SIP included in the start-date sensitivity strip.")
 
 
@@ -188,7 +196,7 @@ class Export(Section):
     default_format: Literal["xlsx", "csv", "zip", "json"] = Field("xlsx", description="Default export format.")
     presets: list[ExportPreset] = Field(default_factory=list, max_length=50, description="Saved export presets.")
     metadata_sheet: bool = Field(True, description="Add a sheet with source, fetch time and caveats to Excel exports.")
-    excel_header_colour: HexColour = Field("#1c5cab", description="Header row fill in Excel exports.")
+    excel_header_colour: HexColour = Field("#1c5cab", description="Header row fill in Excel exports.", json_schema_extra=COLOUR)
     excel_freeze_panes: bool = Field(True, description="Freeze the header row and date column in Excel exports.")
 
     @model_validator(mode="after")

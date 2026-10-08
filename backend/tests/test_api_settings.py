@@ -90,6 +90,17 @@ def test_settings_schema(client):
     assert schema["$defs"]["Sip"]["properties"]["step_up"]["description"]
 
 
+def test_settings_schema_ui_hints(client):
+    defs = client.get("/api/settings/schema").json()["$defs"]
+    assert defs["Analytics"]["properties"]["risk_free_rate"]["x-unit"] == "pct"
+    assert defs["Sip"]["properties"]["step_up"]["x-unit"] == "pct"
+    kpi = defs["Analytics"]["properties"]["kpi_cards"]
+    assert kpi["x-ordered"] is True
+    assert {"value": "cagr", "label": "CAGR"} in kpi["x-options"]
+    assert {o["value"] for o in defs["Analytics"]["properties"]["trailing_periods"]["x-options"]} >= {"1M", "YTD", "10Y"}
+    assert defs["Export"]["properties"]["excel_header_colour"]["format"] == "color"
+
+
 def test_cache_dir_change_blocked_while_job_runs(client, monkeypatch):
     monkeypatch.setattr(client.app.state.ctx.jobs, "is_busy", lambda: True)
     r = client.patch("/api/settings/data", json={"cache_dir": "elsewhere"})

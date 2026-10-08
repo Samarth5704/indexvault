@@ -29,7 +29,7 @@ Shapes below use `…` for repeated items.
 | `PUT /settings` | body: full settings → saved settings |
 | `PATCH /settings/{section}` | body: fields to change → saved settings. Dict sections (`custom_themes`, `custom_palettes`, `shortcuts`) are replaced whole. 409 if `data.cache_dir` changes while a job runs |
 | `POST /settings/reset[?section=]` | → saved settings |
-| `GET /settings/schema` | JSON Schema (`$defs.<Section>.properties.<field>.description/default/minimum/…`) — the Settings UI renders forms from it |
+| `GET /settings/schema` | JSON Schema (`$defs.<Section>.properties.<field>.description/default/minimum/…`) — the Settings UI renders forms from it. UI hints: `x-unit:"pct"` (decimal shown as %), `x-options:[{value,label}]`, `x-ordered:true`, `format:"color"` |
 | `GET /settings/backup` | download: `{kind:"indexvault-backup", version:1, created, settings, catalog:{schema_version, custom_indices, watchlists}}` |
 | `POST /settings/restore` | body: a backup (older settings schemas are migrated) → `{settings, catalog}` (catalog as in `GET /catalog`) |
 | `GET /catalog` | `{categories:[{name, items:[{name, ticker, source, custom, id}]}], watchlists:[{id, name, tickers}]}` |

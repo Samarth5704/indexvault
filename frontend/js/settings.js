@@ -65,27 +65,40 @@ osDark.addEventListener("change", () => {
   if (s?.appearance.mode === "system") applySettings(s);
 });
 
+// PATCH replaces these sections whole (so entries can be removed); others merge.
+const DICT_SECTIONS = new Set(["custom_themes", "custom_palettes", "shortcuts"]);
+
 /**
- * Save part of a section. Appearance changes apply instantly (optimistic) and
- * roll back if the server rejects them. Returns the saved settings.
+ * Save part of a section. Changes apply instantly (optimistic) and roll back if
+ * the server rejects them. Returns the saved settings.
  */
 export async function saveSection(section, patch) {
   const before = settings();
-  const optimistic = { ...before, [section]: { ...before[section], ...patch } };
+  const value = DICT_SECTIONS.has(section) ? patch : { ...before[section], ...patch };
+  const optimistic = { ...before, [section]: value };
   store.set({ settings: optimistic });
   applySettings(optimistic);
   try {
-    const saved = await api.patch(`/settings/${section}`, patch);
-    store.set({ settings: saved });
-    applySettings(saved);
-    api.invalidate("/analytics");
-    api.invalidate("/series");
-    return saved;
+    return adoptSettings(await api.patch(`/settings/${section}`, patch));
   } catch (e) {
     store.set({ settings: before });
     applySettings(before);
     throw e;
   }
+}
+
+/** Store + apply settings the server returned; drop GETs computed with the old ones. */
+export function adoptSettings(saved) {
+  store.set({ settings: saved });
+  applySettings(saved);
+  api.invalidate("/analytics");
+  api.invalidate("/series");
+  return saved;
+}
+
+/** Restore defaults for one section, or everything when `section` is omitted. */
+export async function resetSection(section) {
+  return adoptSettings(await api.post("/settings/reset", undefined, { params: section ? { section } : {} }));
 }
 
 /** Flip light/dark (from "system", flip whatever is showing now). */

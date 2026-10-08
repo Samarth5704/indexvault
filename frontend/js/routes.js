@@ -30,7 +30,8 @@ export const ROUTES = [
     blurb: "What's downloaded, how fresh it is, and ticker health checks.",
     load: () => import("./pages/cache.js") },
   { id: "settings", label: "Settings", icon: "settings", milestone: 7,
-    blurb: "Themes, formats, data defaults, analytics parameters, shortcuts and backup." },
+    blurb: "Themes, formats, data defaults, analytics parameters, shortcuts and backup.",
+    load: () => import("./pages/settings.js") },
 ];
 
 export const ROUTE_BY_ID = Object.fromEntries(ROUTES.map((r) => [r.id, r]));
