@@ -7,6 +7,7 @@ Stored in config/settings.json (created from defaults on first run). Conventions
 """
 from __future__ import annotations
 
+import json
 import re
 import uuid
 from typing import Annotated, Any, Literal
@@ -214,9 +215,25 @@ class Widget(Section):
     h: int = Field(ge=1, le=12)
     config: dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def _fits_grid(self):
+        if self.x + self.w > 12:
+            raise ValueError(f"widget {self.id!r} is wider than the 12-column grid (x + w = {self.x + self.w})")
+        if len(json.dumps(self.config)) > 20_000:
+            raise ValueError(f"widget {self.id!r} config is too large (20 000 characters max)")
+        return self
+
 
 class Dashboard(Section):
-    layout: list[Widget] = Field(default_factory=list, max_length=60, description="Widget grid; empty = default layout (built in M8).")
+    layout: list[Widget] = Field(default_factory=list, max_length=60,
+                                 description="Widget grid (12 columns); empty = the built-in default layout.")
+
+    @model_validator(mode="after")
+    def _unique_ids(self):
+        ids = [w.id for w in self.layout]
+        if len(set(ids)) != len(ids):
+            raise ValueError("widget ids must be unique")
+        return self
 
 
 def _shortcut_map(v: dict[str, str]) -> dict[str, str]:

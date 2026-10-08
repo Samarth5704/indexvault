@@ -223,8 +223,24 @@ def import_csv(ticker: str, src: str | os.PathLike | bytes, dayfirst: bool = Fal
 # --------------------------------------------------------------------------- #
 # Public API
 # --------------------------------------------------------------------------- #
+TRUNCATED_ROWS = 5  # fewer rows than this over a long range = a truncated answer
+
+
 def _requested_start(cached: pd.DataFrame, info: dict) -> pd.Timestamp:
-    return pd.Timestamp(info.get("requested_start", cached.index.min()))
+    """Earliest date the cache can be trusted to cover.
+
+    Yahoo sometimes answers a months-long request with only the latest bar.
+    Trusting the recorded range then would stop the cache from ever backfilling
+    it, so a tiny file that starts well after its recorded start is treated as
+    covering only what it actually holds (the next request backfills). If a
+    backfill already came back empty today, the source really has no more, so
+    the recorded range is trusted until tomorrow (one retry a day)."""
+    recorded = pd.Timestamp(info.get("requested_start", cached.index.min()))
+    first = cached.index.min()
+    tried_today = info.get("backfill_empty_on") == date.today().isoformat()
+    if len(cached) < TRUNCATED_ROWS and first > recorded + timedelta(days=14) and not tried_today:
+        return first
+    return recorded
 
 
 def _wants_newer(cached: pd.DataFrame, info: dict, end: pd.Timestamp, stale_after_hours: float) -> bool:
@@ -290,10 +306,13 @@ def get_data(
 
         pieces = [cached]
         req_start = _requested_start(cached, info)
+        extra = {}
         if start < req_start:  # backfill older history
             older = fetch(ticker, start, cached.index.min() - timedelta(days=1))
             pieces.insert(0, older)
-            req_start = start
+            req_start = min(start, pd.Timestamp(info.get("requested_start", start)))
+            if older.empty:
+                extra["backfill_empty_on"] = date.today().isoformat()
         if _wants_newer(cached, info, end, stale_after_hours):
             # small overlap so revised last bars get corrected
             last = cached.index.max()
@@ -303,7 +322,7 @@ def get_data(
         if len(pieces) > 1:
             merged = pd.concat([p for p in pieces if not p.empty])
             merged = merged[~merged.index.duplicated(keep="last")].sort_index()
-            _save(ticker, source, merged, {"requested_start": str(req_start.date())})
+            _save(ticker, source, merged, {"requested_start": str(req_start.date()), **extra})
             cached = merged
         return cached.loc[start:end]
 

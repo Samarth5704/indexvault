@@ -22,12 +22,15 @@ Design rules: `docs/DESIGN.md`. API shapes: `docs/API.md`.
 | `js/commands.js` | Command-palette commands + global keyboard shortcuts (from settings) |
 | `js/dom.js` · `js/fuzzy.js` · `js/clipboard.js` | `h()` element helper, `icon()`, focus trap; fuzzy matching; copy with fallbacks |
 | `js/columns.js` | Series column ids (`close`, `sma_50`, …) → labels, kinds, cell formatting, defaults |
+| `js/grid-layout.js` | Dashboard layout maths (no DOM): compact (gravity), move/resize with swap-or-push, `findSpot`, `keyboardMove` |
+| `js/markdown.js` | Tiny safe Markdown → DOM renderer (notes widget) |
 | `js/colour.js` | Colour maths for the theme editor: parse, OKLab ΔE, colour-blind simulation (Machado 2009), WCAG contrast, `checkPalette()` |
-| `js/components/` | `series-picker`, `date-range` (+ `freqSelect`), `command-palette`, `toast`, `kpi-card`, `chart-card`, `feedback` (skeleton, empty/error state, status pill, `asyncView`), `data-table` (virtual scroll, sort, column menu), `drawer`, `column-builder`, `export-panel` |
+| `js/components/` | `series-picker`, `date-range` (+ `freqSelect`), `command-palette`, `toast`, `kpi-card`, `chart-card`, `feedback` (skeleton, empty/error state, status pill, `asyncView`), `data-table` (virtual scroll, sort, column menu), `drawer`, `column-builder`, `export-panel`, `form-field` (settings), `widget-grid` (dashboard: 12-column grid, drag/resize/keyboard) |
 | `js/charts/` | `vendor.js` (lazy-loads the libraries), `theme.js` (tokens → chart colours), `timeseries.js` (Lightweight Charts: line/area/candle/underwater, markers, log, PNG), `echarts.js` (host + heatmap/bars/histogram builders), `sync.js` (crosshair sync) |
 | `js/components/legend.js` | Series legend in slot colours + the "too many series" note |
 | `js/pages/` | One module per page: `export default { mount(el, ctx) -> cleanup? }` |
 | `js/components/form-field.js` | One settings field rendered from a JSON-schema property (`x-unit`, `x-options`, `x-ordered` hints): segmented, select, switch, number, percent, range, colour, text, list |
+| `js/pages/dashboard/` | Dashboard widgets: `widgets.js` (registry, card chrome, add/configure drawer, default layout), `widgets-market.js` (snapshot, mini chart, heatmap), `widgets-risk.js` (VIX gauge, drawdown monitor, rolling snapshot, notes), `common.js` |
 | `js/pages/settings/` | Settings sections: `meta.js` (labels/widgets over the schema), `schema-section.js` (generic fields, formats preview, presets), `appearance.js`, `theme-editor.js`, `palette-editor.js`, `catalogue.js`, `shortcuts.js`, `backup.js` |
 | `vendor/` · `fonts/` | Lightweight Charts, ECharts, Inter, JetBrains Mono — see `vendor/VERSIONS.md` |
 

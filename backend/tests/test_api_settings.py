@@ -172,3 +172,17 @@ def test_restore_migrates_old_settings_and_rejects_junk(client):
     bad_values = {**old, "settings": {"schema_version": 1, "formats": {"decimals": 99}}}
     assert client.post("/api/settings/restore", json=bad_values).status_code == 422
     assert client.get("/api/settings").json()["sip"]["step_up"] == pytest.approx(0.10)  # unchanged by failures
+
+
+def test_dashboard_layout_validation(client):
+    good = [{"id": "a", "widget": "snapshot", "x": 0, "y": 0, "w": 3, "h": 2, "config": {"ticker": "^NSEI"}},
+            {"id": "b", "widget": "notes", "x": 9, "y": 0, "w": 3, "h": 3, "config": {"text": "# Hi"}}]
+    r = client.patch("/api/settings/dashboard", json={"layout": good})
+    assert r.status_code == 200 and [w["id"] for w in r.json()["dashboard"]["layout"]] == ["a", "b"]
+    too_wide = [{**good[0], "x": 10, "w": 3}]
+    assert client.patch("/api/settings/dashboard", json={"layout": too_wide}).status_code == 422
+    dupes = [good[0], {**good[1], "id": "a"}]
+    assert client.patch("/api/settings/dashboard", json={"layout": dupes}).status_code == 422
+    huge = [{**good[1], "config": {"text": "x" * 25_000}}]
+    assert client.patch("/api/settings/dashboard", json={"layout": huge}).status_code == 422
+    assert client.post("/api/settings/reset", params={"section": "dashboard"}).json()["dashboard"]["layout"] == []

@@ -27,7 +27,7 @@ Shapes below use `…` for repeated items.
 | `GET /health[?check=true]` | `{status:"ok", version, source, sources:[{name,label,offline}], cache_dir, jobs_running, warnings:[str], source_check?:{ok,message}}` |
 | `GET /settings` | the full settings object (see SPEC § 4) |
 | `PUT /settings` | body: full settings → saved settings |
-| `PATCH /settings/{section}` | body: fields to change → saved settings. Dict sections (`custom_themes`, `custom_palettes`, `shortcuts`) are replaced whole. 409 if `data.cache_dir` changes while a job runs |
+| `PATCH /settings/{section}` | body: fields to change → saved settings. `dashboard.layout` widgets must fit 12 columns (`x + w ≤ 12`), have unique ids and ≤ 20 000 characters of config. Dict sections (`custom_themes`, `custom_palettes`, `shortcuts`) are replaced whole. 409 if `data.cache_dir` changes while a job runs |
 | `POST /settings/reset[?section=]` | → saved settings |
 | `GET /settings/schema` | JSON Schema (`$defs.<Section>.properties.<field>.description/default/minimum/…`) — the Settings UI renders forms from it. UI hints: `x-unit:"pct"` (decimal shown as %), `x-options:[{value,label}]`, `x-ordered:true`, `format:"color"` |
 | `GET /settings/backup` | download: `{kind:"indexvault-backup", version:1, created, settings, catalog:{schema_version, custom_indices, watchlists}}` |

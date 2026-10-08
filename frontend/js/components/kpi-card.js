@@ -6,7 +6,7 @@ import { format } from "../settings.js";
 
 const COUNT_MS = 400;
 
-function sparkline(values) {
+export function sparkline(values) {
   const pts = values.filter((v) => Number.isFinite(v));
   if (pts.length < 2) return null;
   const min = Math.min(...pts), max = Math.max(...pts), span = max - min || 1;

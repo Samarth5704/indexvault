@@ -1,146 +1,136 @@
-// Dashboard (M2 preview). The widget grid arrives in M8; for now this page shows
-// the building blocks working on live data for the current selection.
+// Dashboard (SPEC § 3.1): a 12-column grid of widgets. "Edit layout" turns on
+// drag-to-move, resize handles and keyboard arranging; every change is saved to
+// settings.dashboard.layout. An empty saved layout means the built-in default.
 
-import { api, enc } from "../api.js";
-import { chartCard } from "../components/chart-card.js";
-import { asyncView, emptyState, statusPill } from "../components/feedback.js";
-import { kpiCard } from "../components/kpi-card.js";
-import { seriesName } from "../components/series-picker.js";
-import { h } from "../dom.js";
-import { format, settings } from "../settings.js";
-import { rangeParams, selection, seriesColour, store } from "../store.js";
+import { confirmDialog } from "../components/confirm.js";
+import { emptyState } from "../components/feedback.js";
+import { toast, toastError } from "../components/toast.js";
+import { widgetGrid } from "../components/widget-grid.js";
+import { h, icon } from "../dom.js";
+import { findSpot, sameLayout } from "../grid-layout.js";
+import { setPageParams } from "../router.js";
+import { saveSection, settings } from "../settings.js";
+import { store } from "../store.js";
+import { defaultLayout, limitsFor, newId, openAddWidget, openConfigure, widgetCard } from "./dashboard/widgets.js";
 
-function head() {
-  return h("header.page-head",
-    h("div", h("h1", "Dashboard"),
-      h("p.page-sub", "A live preview of the building blocks. The customisable widget grid arrives in Milestone 8.")));
-}
-
-/** KPI strip for the first selected series, cards chosen in settings (analytics.kpi_cards). */
-function kpiStrip(ticker) {
-  const strip = h("div.kpi-strip", { role: "list", "aria-label": `Key figures for ${seriesName(ticker)}` });
-  const ids = settings().analytics.kpi_cards;
-  const cards = ids.map((id) => kpiCard({ label: "…", deltaLabel: id === "end_level" ? "1M" : "" }));
-  cards.forEach((c) => { c.el.setAttribute("role", "listitem"); strip.append(c.el); });
-  const wrap = h("section.kpi-section", h("h2.section-title", seriesName(ticker)), strip);
-  return {
-    el: wrap,
-    async load() {
-      const [sum, spark, trailing] = await Promise.all([
-        api.get("/analytics/summary", { tickers: ticker, ...rangeParams() }),
-        api.get(`/series/${enc(ticker)}`, { ...rangeParams(), freq: "Weekly", columns: "close" }),
-        api.get("/analytics/trailing", { tickers: ticker, periods: "1M" }),
-      ]);
-      const meta = Object.fromEntries(sum.metrics.map((m) => [m.id, m]));
-      const values = sum.series[ticker].metrics;
-      const closes = spark.rows.map((r) => r[1]);
-      cards.forEach((card, i) => {
-        const id = ids[i];
-        card.el.querySelector(".kpi-label").textContent = meta[id]?.label || id;
-        card.update({ value: values[id], kind: meta[id]?.kind });
-        if (id === "end_level") card.update({ delta: trailing.series[ticker]["1M"], spark: closes });
-      });
-      return sum;
-    },
-  };
-}
-
-function growthCard(tickers) {
-  let payload = null;
-  const card = chartCard({
-    title: "Growth of 100", subtitle: "Rebased to the first common date · preview chart",
-    filename: "growth-of-100",
-    data: () => ({
-      columns: ["Date", ...tickers.map(seriesName)],
-      rows: payload.rebased.dates.map((d, i) => [d, ...tickers.map((t) => payload.rebased.series[t][i])]),
-      format: Object.fromEntries(tickers.map((t) => [seriesName(t), (v) => format.number(v)])),
-    }),
-  });
-  card.el.classList.add("span-8");
-  return {
-    card,
-    async load() {
-      card.loading();
-      try {
-        payload = await api.get("/analytics/compare", { tickers, ...rangeParams() });
-        card.content(sparkLines(payload, tickers));
-      } catch (e) {
-        card.error(e, () => this.load());
-      }
-    },
-  };
-}
-
-/** Minimal SVG lines until the real chart wrappers land in M4. */
-function sparkLines(payload, tickers) {
-  const all = tickers.flatMap((t) => payload.rebased.series[t]);
-  const min = Math.min(...all), max = Math.max(...all), span = max - min || 1;
-  const n = payload.rebased.dates.length;
-  const lines = tickers.map((t) => {
-    const pts = payload.rebased.series[t].map((v, i) => `${((i / (n - 1)) * 600).toFixed(1)},${(190 - ((v - min) / span) * 180).toFixed(1)}`);
-    return `<polyline points="${pts.join(" ")}" fill="none" stroke="${seriesColour(t)}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
-  }).join("");
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 600 200");
-  svg.setAttribute("preserveAspectRatio", "none");
-  svg.setAttribute("class", "preview-lines");
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `Growth of 100 for ${tickers.map(seriesName).join(", ")}. Use the table view for values.`);
-  svg.innerHTML = lines;
-  const legend = h("ul.legend", tickers.map((t) => h("li",
-    h("span.chip-dot", { style: { background: seriesColour(t) } }), seriesName(t),
-    h("span.mono.muted", format.number(payload.rebased.series[t].at(-1))))));
-  return h("div.preview-chart", legend, svg);
-}
-
-function healthCard(tickers) {
-  const body = h("div.card-pad");
-  const el = h("section.card.span-4", h("header.card-head", h("div.card-titles", h("h3.card-title", "Data health"),
-    h("p.card-sub", "Status pills from the quality checks"))), body);
-  return {
-    el,
-    load: () => asyncView(body, {
-      load: () => api.get("/analytics/quality", { tickers, ...rangeParams() }),
-      render: (q) => h("ul.health-list", tickers.map((t) => h("li",
-        h("span.truncate", seriesName(t)), statusPill(q.series[t].status),
-        q.series[t].issues.length ? h("p.muted.health-issue", q.series[t].issues.join(" · ")) : null))),
-      skeleton: { lines: tickers.length },
-    }),
-  };
-}
+const saved = () => settings().dashboard.layout;
+const current = () => (saved().length ? saved().map((i) => ({ ...i })) : defaultLayout());
 
 export default {
-  mount(el, ctx) {
-    el.append(head());
-    const body = h("div.page-body");
-    el.append(body);
+  mount(el, { route }) {
+    let editing = route.params.edit === "1";
+    const editBtn = h("button.btn.secondary.sm", { type: "button", onclick: () => setEditing(!editing) });
+    const addBtn = h("button.btn.secondary.sm", { type: "button", onclick: add }, icon("plus", { size: "sm" }), "Add widget");
+    const resetBtn = h("button.btn.ghost.sm", { type: "button", onclick: reset }, icon("refresh", { size: "sm" }), "Reset layout");
+    const hint = h("p.dash-hint", { role: "status" });
+    const empty = h("section.card", { hidden: true }, emptyState({ icon: "dashboard", title: "Your dashboard is empty",
+      message: "Add widgets one by one, or bring back the default layout.", action: { label: "Add a widget", onClick: add } }));
+    el.append(
+      h("header.page-head",
+        h("div", h("h1", "Dashboard"), h("p.page-sub", "Your market at a glance. Arrange it any way you like.")),
+        h("div.head-actions", addBtn, resetBtn, editBtn)),
+      hint);
 
-    function render() {
-      const { series } = selection();
-      body.replaceChildren();
-      if (!series.length) {
-        body.append(h("section.card", emptyState({
-          icon: "chart", title: "Pick a series to get started",
-          message: "Choose an index like NIFTY 50 from the series picker. Your selection follows you to every page.",
-          action: { label: "Add series", onClick: ctx.openPicker },
-        })));
-        return;
-      }
-      const kpis = kpiStrip(series[0]);
-      const growth = growthCard(series);
-      const health = healthCard(series);
-      body.append(kpis.el, h("div.grid", growth.card.el, health.el));
-      kpis.load().catch((e) => kpis.el.replaceChildren(emptyState({ icon: "alert-octagon", title: "Couldn't load key figures", message: e.message })));
-      growth.load();
-      health.load();
+    const grid = widgetGrid({
+      layout: current(),
+      label: "Dashboard widgets",
+      limits: limitsFor,
+      render: (item) => widgetCard(item, {
+        onConfigure: (it) => openConfigure(grid.layout().find((x) => x.id === it.id) || it, (config) => setConfig(it.id, config, true)),
+        onRemove: remove,
+        saveConfig: (config) => setConfig(item.id, config, false),
+      }),
+      onChange: persist,
+      onRemove: remove,
+    });
+    el.append(grid.el, empty);
+
+    // ------------------------------------------------------------ actions
+    function setEditing(on) {
+      editing = on;
+      grid.setEditing(on);
+      editBtn.replaceChildren(icon(on ? "check" : "columns", { size: "sm" }), on ? "Done" : "Edit layout");
+      editBtn.classList.toggle("primary", on);
+      editBtn.classList.toggle("secondary", !on);
+      editBtn.setAttribute("aria-pressed", String(on));
+      addBtn.hidden = resetBtn.hidden = !on;
+      hint.textContent = on
+        ? "Drag a widget by its title bar, or pull its corner to resize. With the keyboard: Tab to a widget, arrows move it, Shift + arrows resize, Delete removes."
+        : "";
+      setPageParams(on ? { ...store.get().route.params, edit: "1" } : Object.fromEntries(Object.entries(store.get().route.params).filter(([k]) => k !== "edit")));
     }
 
+    async function persist(layout) {
+      empty.hidden = layout.length > 0;
+      try {
+        await saveSection("dashboard", { layout });
+      } catch (e) {
+        toastError(e, "Couldn't save the layout");
+      }
+    }
+
+    function setConfig(id, config, rebuild) {
+      const layout = grid.layout().map((i) => (i.id === id ? { ...i, config } : i));
+      if (!layout.some((i) => i.id === id)) return; // widget was removed meanwhile
+      if (rebuild) grid.setLayout(layout);
+      else grid.setConfig(id, config);
+      persist(layout);
+    }
+
+    function add() {
+      openAddWidget(({ widget, config, w, h: ht }) => {
+        const layout = grid.layout();
+        const spot = findSpot(layout, w, ht);
+        const item = { id: newId(), widget, config, w, h: ht, ...spot };
+        grid.setLayout([...layout, item]);
+        persist(grid.layout());
+        if (!editing) setEditing(true);
+        requestAnimationFrame(() => el.querySelector(`.wg-item[data-id="${item.id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+      });
+    }
+
+    function remove(item) {
+      const before = grid.layout();
+      const name = el.querySelector(`.wg-item[data-id="${item.id}"] .card-title`)?.textContent || "Widget";
+      const hadFocus = el.querySelector(`.wg-item[data-id="${item.id}"]`)?.contains(document.activeElement);
+      const order = [...el.querySelectorAll(".wg-item")].sort((a, b) => a.style.order - b.style.order).map((c) => c.dataset.id);
+      const neighbour = order[order.indexOf(item.id) + 1] || order[order.indexOf(item.id) - 1];
+      grid.setLayout(before.filter((i) => i.id !== item.id));
+      persist(grid.layout());
+      if (hadFocus) el.querySelector(`.wg-item[data-id="${neighbour}"]`)?.focus(); // keep keyboard users in the grid
+      toast({ title: `Removed ${name}`, duration: 8000, action: { label: "Undo", onClick: () => { grid.setLayout(before); persist(before); } } });
+    }
+
+    async function reset() {
+      const ok = await confirmDialog({ title: "Reset the dashboard layout?", confirmLabel: "Reset layout",
+        message: "Your widgets, their settings and any notes go back to the default layout. Export a backup first (Settings → Backup) if you want to keep your notes." });
+      if (!ok) return;
+      grid.setLayout(defaultLayout());
+      empty.hidden = true;
+      try {
+        await saveSection("dashboard", { layout: [] });
+        toast({ tone: "success", title: "Dashboard reset" });
+      } catch (e) { toastError(e, "Couldn't reset the layout"); }
+    }
+
+    // ------------------------------------------------------------ outside changes
     const unsubs = [
-      store.subscribe((s) => s.selection, render),
-      store.subscribe((s) => s.settings?.analytics, render),
-      store.subscribe((s) => s.settings?.data.source, render),
+      // e.g. a backup restore or reset from Settings: follow it (our own saves echo back unchanged)
+      store.subscribe((s) => s.settings?.dashboard.layout, () => {
+        const next = current();
+        if (!sameLayout(next, grid.layout()) && !(saved().length === 0 && !grid.layout().length)) grid.setLayout(next);
+      }),
+      store.subscribe((s) => s.settings?.data.source, () => grid.refreshAll()),
+      store.subscribe((s) => JSON.stringify(s.settings?.formats), () => grid.refreshAll()), // saves return new objects; compare by value
+      store.subscribe((s) => s.catalog, () => grid.refreshAll()),
+      store.subscribe((s) => s.route.params.edit, (v) => {
+        if (store.get().route.page === "dashboard" && (v === "1") !== editing) setEditing(v === "1"); // e.g. from the command palette
+      }),
     ];
-    render();
-    return () => unsubs.forEach((u) => u());
+    setEditing(editing);
+    return () => {
+      unsubs.forEach((u) => u());
+      grid.destroy();
+    };
   },
 };

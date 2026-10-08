@@ -94,3 +94,42 @@ def test_summary_metrics_keys():
     m = an.summary_metrics(data.get_data("^CNXIT", "2010-01-01", source="demo")["Close"])
     for k in ["CAGR %", "Sharpe", "Max drawdown %", "Daily VaR 95 %"]:
         assert np.isfinite(m[k])
+
+
+def test_truncated_fetch_is_backfilled_later(counting_source):
+    """A source that once returned just the last bar for a long range must not
+    leave the cache thinking that range is covered."""
+    last = pd.Timestamp.today().normalize() - pd.offsets.BDay(2)
+    one_row = pd.DataFrame({"Open": [1.0], "High": [1.0], "Low": [1.0], "Close": [1.0]}, index=[last])
+    data._save("^TRUNC", "counting", data._clean(one_row), {"requested_start": "2021-01-01"})
+    cached, info = data.load_cached("^TRUNC", "counting")
+    assert data._requested_start(cached, info) == last
+    assert data.needs_fetch(cached, info, "2021-01-01")
+    df = data.get_data("^TRUNC", "2021-01-01", source="counting")
+    assert len(df) > 100 and df.index[0] <= pd.Timestamp("2021-01-05")
+    assert counting_source[0][1] == pd.Timestamp("2021-01-01")  # it backfilled the missing history
+    cached, info = data.load_cached("^TRUNC", "counting")
+    assert not data.needs_fetch(cached, info, "2021-01-01")  # and now trusts the full range
+
+
+def test_truncated_source_is_retried_once_a_day():
+    """When the source really has only the latest bar, don't ask it again on every request."""
+    calls = []
+    last = pd.Timestamp.today().normalize() - pd.offsets.BDay(2)
+
+    def fetch(ticker, start, end):
+        calls.append((start, end))
+        idx = [last] if start <= last <= end else []
+        return data._clean(pd.DataFrame({"Open": 1.0, "High": 1.0, "Low": 1.0, "Close": 1.0}, index=pd.DatetimeIndex(idx)))
+
+    data.register_source("stubby", fetch, offline=True)
+    try:
+        data.get_data("^ONE", "2021-01-01", source="stubby")   # first fetch: one row
+        data.get_data("^ONE", "2021-01-01", source="stubby")   # backfill attempt: empty
+        n = len(calls)
+        data.get_data("^ONE", "2021-01-01", source="stubby")   # trusted until tomorrow
+        assert len(calls) == n == 2
+        _, info = data.load_cached("^ONE", "stubby")
+        assert info["backfill_empty_on"] == __import__("datetime").date.today().isoformat()
+    finally:
+        data.unregister_source("stubby")

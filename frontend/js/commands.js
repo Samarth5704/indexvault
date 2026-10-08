@@ -55,6 +55,8 @@ export function commandProvider(ui) {
           .then(() => api.invalidate()).catch(() => {}) },
       { id: "export", group: "Actions", label: "Export current view", icon: "download", keywords: ["excel", "csv", "download"],
         run: () => navigate("data", { ...(store.get().route.page === "data" ? store.get().route.params : {}), export: "1" }) },
+      { id: "dashboard:edit", group: "Actions", label: "Edit dashboard layout", icon: "dashboard", keywords: ["widgets", "arrange", "add widget"],
+        run: () => navigate("dashboard", { edit: "1" }) },
       { id: "link", group: "Actions", label: "Copy link to this view", icon: "link",
         run: () => copyText(location.href, { title: "Copy link" }).then((how) => { if (how === "copied") toast({ tone: "success", title: "Link copied" }); }) },
     );
