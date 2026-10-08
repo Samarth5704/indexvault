@@ -1,0 +1,64 @@
+/* SIP Lab, Seasonality, Data Health, Cache (SPEC § 3.6–3.9) + confirm dialog */
+
+.head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.row-actions { display: flex; justify-content: flex-end; gap: var(--sp-1); white-space: nowrap; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+.field-hint { font-size: var(--fs-xs); }
+
+/* SIP Lab */
+.sip-kpis { margin-bottom: var(--sp-4); }
+.sip-kpis .kpi-delta { white-space: normal; }
+.sip-inputs .card-head { align-items: center; }
+.sip-form { display: flex; flex-direction: column; gap: var(--sp-3); }
+.sip-form .input, .sip-form .select { width: 100%; }
+.topup-list { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0 0 var(--sp-1); padding: 0; list-style: none; }
+.topup { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--sp-2); align-items: center; }
+.legend-line { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--text-2); }
+.legend-line.dashed { border-top-style: dashed; border-top-color: var(--text-muted); }
+.scenario-table td:first-child { white-space: normal; min-width: 260px; }
+
+/* Seasonality */
+.caution { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4);
+  border-left: 3px solid var(--warning); }
+.caution > .icon { color: var(--warning); flex: none; margin-top: 2px; }
+.caution-title { font-weight: var(--fw-label); margin-bottom: var(--sp-1); }
+
+/* Data Health */
+.health-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-4); }
+.health-thresholds { font-size: var(--fs-sm); }
+.health-table td.flag { color: var(--text); font-weight: var(--fw-label); }
+.health-table td .mono { font-size: var(--fs-xs); }
+.health-detail > td { padding: var(--sp-3) var(--sp-4) var(--sp-4); background: var(--surface-2); white-space: normal; }
+.health-moves { display: flex; flex-direction: column; gap: var(--sp-3); max-width: 640px; }
+.health-moves .table-wrap { max-height: 280px; }
+.btn[aria-expanded="true"] .icon { transform: rotate(90deg); }
+
+/* Header alignment follows the column's cells (text left, numbers right). */
+.health-table th:nth-child(2), .cache-table th:nth-child(2),
+.cache-table th:nth-child(4), .cache-table th:nth-child(5), .cache-table th:nth-child(6) { text-align: left; }
+
+/* Cache */
+.cache-location { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  padding: var(--sp-4); margin-bottom: var(--sp-4); }
+.cache-path { font-size: var(--fs-sm); word-break: break-all; }
+.source-tag { display: inline-block; padding: 1px var(--sp-2); border-radius: var(--radius-pill); background: var(--surface-2); color: var(--text-2); font-size: var(--fs-xs); }
+.cache-table td .mono { font-size: var(--fs-xs); }
+.page-body > .card + .card { margin-top: var(--sp-4); }
+.check-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.check-table { max-height: 420px; }
+
+/* Confirm dialog */
+.confirm-overlay { display: grid; place-items: center; padding: var(--sp-4); }
+.confirm {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-6);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-pop);
+  animation: iv-rise var(--dur) var(--ease);
+}
+.confirm-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--accent); background: var(--accent-soft); }
+.confirm-icon[data-danger] { color: var(--critical); background: color-mix(in oklab, var(--critical) 12%, transparent); }
+.confirm-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
+
+@media (max-width: 767px) {
+  .form-row { grid-template-columns: 1fr; }
+  .cache-location { padding: var(--sp-3); }
+}

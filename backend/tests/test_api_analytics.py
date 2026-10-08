@@ -168,6 +168,25 @@ def test_sip(client):
     assert "sensitivity" not in body
 
 
+def test_sip_export(client):
+    import io
+    from openpyxl import load_workbook
+    body = {"ticker": "^NSEI", "start": "2015-01-01", "end": "2020-12-31", "amount": 5000, "step_up": 0.1}
+    r = client.post("/api/analytics/sip/export?format=xlsx", json=body)
+    assert r.status_code == 200 and r.headers["content-disposition"].endswith('.xlsx"')
+    wb = load_workbook(io.BytesIO(r.content))
+    assert wb.sheetnames == ["Summary", "Ledger"]
+    summary = {c.value: wb["Summary"].cell(2, i + 1) for i, c in enumerate(wb["Summary"][1])}
+    assert summary["XIRR"].number_format == "0.00%" and abs(summary["XIRR"].value) < 1
+    assert summary["Annual step-up"].value == pytest.approx(0.1)
+    ledger = wb["Ledger"]
+    assert [c.value for c in ledger[1]] == ["Date", "Price", "Invested", "Units", "Value", "Gain", "Lump-sum value"]
+    assert ledger.max_row == 73                                  # header + 72 months
+    csv = client.post("/api/analytics/sip/export?format=csv", json=body)
+    assert csv.headers["content-type"].startswith("text/csv") and csv.content.decode("utf-8-sig").startswith("Date,Price")
+    assert client.post("/api/analytics/sip/export?format=pdf", json=body).status_code == 422
+
+
 def test_sip_sensitivity_and_errors(client):
     body = client.post("/api/analytics/sip?sensitivity=true",
                        json={"ticker": "^NSEI", "start": "2015-01-01", "end": "2020-12-31"}).json()

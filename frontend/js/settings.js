@@ -162,6 +162,18 @@ export const format = {
     }
   },
 
+  /** Local ISO timestamp -> "just now" / "12 min ago" / "3 h ago" / "2 d ago" / the date. */
+  ago(iso) {
+    if (!iso) return DASH;
+    const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (!Number.isFinite(mins)) return DASH;
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins} min ago`;
+    if (mins < 48 * 60) return `${Math.round(mins / 60)} h ago`;
+    if (mins < 14 * 24 * 60) return `${Math.round(mins / 1440)} d ago`;
+    return format.date(iso.slice(0, 10));
+  },
+
   /** Change with arrow + sign so colour is never the only signal. */
   delta(v, { decimals = formats().decimals } = {}) {
     if (missing(v)) return { text: DASH, tone: "flat", arrow: "" };

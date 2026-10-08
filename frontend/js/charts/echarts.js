@@ -86,14 +86,15 @@ function categoryLabels(t, names, reserved = 64) {
 /**
  * Year × month heatmap plus a separate "Year" column with its own colour scale
  * (annual returns are ~5× monthly ones and would otherwise saturate).
- * values: rows of 12 monthly decimals per year; yearTotals: decimal per year.
+ * values: rows of 12 monthly decimals per year; yearTotals: decimal per year, or
+ * null for no Year column (e.g. the SIP start-date grid). tooltipTitle names a cell.
  */
-export function heatmapOption(t, { years, months, values, yearTotals, fmt }) {
-  const cols = [...months, "Year"];
+export function heatmapOption(t, { years, months, values, yearTotals = null, fmt, tooltipTitle = null }) {
+  const cols = yearTotals ? [...months, "Year"] : [...months];
   const monthCells = [], yearCells = [];
   years.forEach((y, yi) => {
     values[yi].forEach((v, mi) => { if (v != null) monthCells.push([mi, yi, v]); });
-    if (yearTotals[yi] != null) yearCells.push([12, yi, yearTotals[yi]]);
+    if (yearTotals?.[yi] != null) yearCells.push([12, yi, yearTotals[yi]]);
   });
   const span = (cells) => Math.max(1e-9, ...cells.map((c) => Math.abs(c[2])));
   const scale = (cells, seriesIndex) => ({
@@ -108,24 +109,26 @@ export function heatmapOption(t, { years, months, values, yearTotals, fmt }) {
   });
   return {
     grid: grid({ top: 8 }),
-    tooltip: tooltip(t, { formatter: (p) => `${years[p.value[1]]} · ${cols[p.value[0]]}<br><b>${fmt(p.value[2])}</b>` }),
+    tooltip: tooltip(t, { formatter: (p) => `${tooltipTitle ? `${tooltipTitle} ` : ""}${cols[p.value[0]]} ${years[p.value[1]]}<br><b>${fmt(p.value[2])}</b>` }),
     xAxis: { type: "category", data: cols, position: "top", ...axisStyle(t), splitLine: { show: false }, axisLine: { show: false } },
     yAxis: { type: "category", data: years.map(String), inverse: true, ...axisStyle(t), splitLine: { show: false }, axisLine: { show: false } },
-    visualMap: [scale(monthCells, 0), scale(yearCells, 1)],
-    series: [cellSeries(monthCells, "Month"), cellSeries(yearCells, "Year")],
+    visualMap: yearTotals ? [scale(monthCells, 0), scale(yearCells, 1)] : [scale(monthCells, 0)],
+    series: yearTotals ? [cellSeries(monthCells, "Month"), cellSeries(yearCells, "Year")] : [cellSeries(monthCells, "Month")],
   };
 }
 
-/** Bars coloured by sign (gain/loss), value labels with a sign. */
-export function barsOption(t, { labels, values, fmt, tooltipLabel = (l) => l }) {
+/** Bars coloured by sign (gain/loss), value labels with a sign. muted[i] greys a bar
+ *  (e.g. too little data) and marks its label with "*" so colour isn't the only signal. */
+export function barsOption(t, { labels, values, fmt, tooltipLabel = (l) => l, muted = [] }) {
   return {
     grid: grid({ top: 24 }),
     tooltip: tooltip(t, { trigger: "item", formatter: (p) => `${tooltipLabel(labels[p.dataIndex])}<br><b>${fmt(p.value)}</b>` }),
-    xAxis: { type: "category", data: labels, ...axisStyle(t), splitLine: { show: false } },
+    xAxis: { type: "category", data: labels, ...axisStyle(t), splitLine: { show: false },
+      axisLabel: { ...axisStyle(t).axisLabel, interval: 0, formatter: (v, i) => (muted[i] ? `${v}*` : v) } },
     yAxis: { type: "value", ...axisStyle(t), axisLine: { show: false }, axisLabel: { ...axisStyle(t).axisLabel, formatter: (v) => fmt(v, 0) } },
     series: [{
       type: "bar", barMaxWidth: 28,
-      data: values.map((v) => ({ value: v, itemStyle: { color: v >= 0 ? t.gain : t.loss, borderRadius: v >= 0 ? [2, 2, 0, 0] : [0, 0, 2, 2] } })),
+      data: values.map((v, i) => ({ value: v, itemStyle: { color: muted[i] ? t.muted : v >= 0 ? t.gain : t.loss, opacity: muted[i] ? 0.6 : 1, borderRadius: v >= 0 ? [2, 2, 0, 0] : [0, 0, 2, 2] } })),
       label: { show: labels.length <= 24, position: "outside", color: t.text2, fontFamily: t.fontMono, fontSize: t.fontSize, formatter: (p) => fmt(p.value, 1) },
     }],
   };

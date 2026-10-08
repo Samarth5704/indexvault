@@ -204,6 +204,7 @@ are referenced by id from `api/metrics.py` (`cagr`, `ann_vol`, `max_drawdown`, â
     "correlation_frequency": "W",   // D | W | M (also used for beta)
     "rolling_corr_window": 52,      // periods of correlation_frequency
     "big_move_threshold": 0.05,     // also the Data Health big-move threshold
+    "seasonality_min_years": 5,     // flag months/days with fewer years of data
     "quality_gap_days": 5,
     "drawdown_table_size": 5,
     "histogram_bins": 50,

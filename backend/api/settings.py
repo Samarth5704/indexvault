@@ -145,6 +145,7 @@ class Analytics(Section):
     correlation_frequency: Literal["D", "W", "M"] = Field("W", description="Return frequency for correlation and beta: daily, weekly or monthly.")
     rolling_corr_window: int = Field(52, ge=5, le=520, description="Rolling-correlation window, in periods of the correlation frequency.")
     big_move_threshold: float = Field(0.05, gt=0, le=0.5, description="Daily move (decimal) flagged as a big move.")
+    seasonality_min_years: int = Field(5, ge=1, le=50, description="Seasonality: months/days with fewer years of data are flagged as unreliable.")
     quality_gap_days: int = Field(5, ge=2, le=60, description="Calendar-day gap counted as a hole in the data.")
     drawdown_table_size: int = Field(5, ge=1, le=50, description="Rows in the worst-drawdowns table.")
     histogram_bins: int = Field(50, ge=10, le=200, description="Bins in the daily-return histogram.")

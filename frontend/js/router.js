@@ -19,7 +19,7 @@ function pageParams(query) {
 }
 
 function buildHash(page, sel, params = {}) {
-  const extra = new URLSearchParams(params).toString().replaceAll("%2C", ",").replaceAll("%5E", "^");
+  const extra = new URLSearchParams(params).toString().replaceAll("%2C", ",").replaceAll("%5E", "^").replaceAll("%3A", ":").replaceAll("%3B", ";");
   return `#/${page}?${selectionToQuery(sel)}${extra ? `&${extra}` : ""}`;
 }
 

@@ -115,6 +115,10 @@ required; Open/High/Low/Adj Close/Volume optional; commas in numbers OK) → 201
  "sensitivity":[{"start":"2016-11-07","months":120,"invested":…,"final_value":…,"xirr":0.079}, …]}
 ```
 
+**`POST /analytics/sip/export?format=xlsx|csv`** — same body as `/analytics/sip`; returns the
+monthly ledger as a file. Excel: `Summary` (one row, % columns as real % cells) + `Ledger`
+sheets, styled per settings. CSV: the ledger only (UTF-8 with BOM).
+
 ## Export
 
 **`POST /export`** — body
