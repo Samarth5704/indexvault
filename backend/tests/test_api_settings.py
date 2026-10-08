@@ -27,6 +27,10 @@ def test_health_source_check(client):
 def test_frontend_served_at_root(client):
     r = client.get("/")
     assert r.status_code == 200 and "IndexVault" in r.text
+    js = client.get("/js/app.js")
+    assert js.headers["content-type"].startswith("text/javascript")
+    assert js.headers["cache-control"] == "no-cache"          # edited modules never go stale
+    assert client.get("/js/app.js", headers={"If-None-Match": js.headers["etag"]}).status_code == 304
 
 
 def test_unknown_route_uses_error_envelope(client):

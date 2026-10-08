@@ -31,8 +31,10 @@ backend/
   tests/           pytest — core + API tests
 frontend/
   index.html       single-page shell
-  css/             tokens.css, base.css, components.css, pages/*.css
-  js/              app.js, router.js, api.js, store.js, settings.js, components/, pages/, charts/
+  css/             tokens.css, base.css, shell.css, components.css, pages/*.css
+  js/              app.js, router.js, routes.js, api.js, store.js, settings.js, shell.js,
+                   commands.js, pulse.js, dom.js, fuzzy.js, components/, pages/, charts/
+                   (frontend/README.md maps every file)
   vendor/ fonts/
 config/
   settings.json    user settings (created on first run from defaults; git-ignored)

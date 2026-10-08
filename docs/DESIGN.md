@@ -56,6 +56,12 @@ critical `#d03b3b`.
 sets `--gain` to `--series-1`. Either way, never rely on colour alone: always show a sign
 or an arrow.
 
+**Theme + mode (decided in M2):** each built-in theme has a counterpart in the other
+scheme — Midnight ↔ Paper, Terminal ↔ Saffron. `appearance.theme` is the one you pick;
+`appearance.mode` (light / dark / system) shows its counterpart when the schemes differ,
+so the top-bar sun/moon toggle always does something visible. Custom themes use their
+base theme's scheme (their token overrides apply only in that scheme).
+
 ### 1.3 Typography
 - UI: **Inter** (self-hosted, variable), with `font-feature-settings: "cv11", "ss01"`.
 - Numbers: **JetBrains Mono** or Inter with `font-variant-numeric: tabular-nums`. Use the
@@ -92,9 +98,11 @@ or an arrow.
   right-aligned in mono, negatives in `--loss` with a − sign, virtual scroll above 200 rows,
   a column menu (hide, reorder, sort), and a sort button in each header.
 - **Series picker:** chips coloured by the series' slot colour (a small dot, never a coloured
-  chip background). The dropdown has grouped search (category headings), watchlist tabs,
+  chip background). Chips that don't fit collapse into a "+N" chip that opens the picker, so
+  part of the selection is never silently hidden. The dropdown has grouped search (category headings), watchlist tabs,
   keyboard navigation and recent picks. Selection order fixes each series' colour slot.
-- **Date range:** segmented presets plus a "Custom" popover with two calendars and typed input.
+- **Date range:** segmented presets plus a "Custom" popover with two date fields (typed input
+  plus the browser's native calendar). Below 1280 px the minor presets (1M 3M 6M YTD 3Y) hide.
 - **Command palette:** centred modal 640 px wide with fuzzy search, grouped results and
   shortcut hints on the right.
 - **Toast:** bottom-right, stacked, with a progress bar for jobs. Auto-dismiss in 4 s unless

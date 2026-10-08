@@ -1,0 +1,166 @@
+/* IndexVault design tokens (docs/DESIGN.md § 1).
+ * Everything visual reads from these custom properties. js/settings.js sets on <html>:
+ *   data-theme    midnight | paper | terminal | saffron  (resolved from theme + mode)
+ *   data-density  comfortable | compact
+ *   data-radius   none | sm | md | lg
+ *   data-motion   full | reduced | off
+ *   data-gainloss market | colorblind
+ * plus inline overrides: --font-scale, --accent (accent override), custom theme tokens.
+ */
+
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/inter-latin-wght.woff2") format("woff2");
+  font-weight: 100 900; font-style: normal; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/inter-latin-ext-wght.woff2") format("woff2");
+  font-weight: 100 900; font-style: normal; font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/jetbrains-mono-latin-wght.woff2") format("woff2");
+  font-weight: 100 800; font-style: normal; font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/jetbrains-mono-latin-ext-wght.woff2") format("woff2");
+  font-weight: 100 800; font-style: normal; font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Theme-independent tokens                                                  */
+/* ------------------------------------------------------------------------ */
+:root {
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-scale: 1;
+
+  --fs-xs: calc(11px * var(--font-scale));
+  --fs-sm: calc(12px * var(--font-scale));
+  --fs-base: calc(13px * var(--font-scale));
+  --fs-md: calc(14px * var(--font-scale));
+  --fs-lg: calc(16px * var(--font-scale));
+  --fs-xl: calc(20px * var(--font-scale));
+  --fs-2xl: calc(24px * var(--font-scale));
+  --fs-hero: calc(32px * var(--font-scale));
+  --fw-body: 400; --fw-label: 500; --fw-heading: 600;
+  --lh-tight: 1.2; --lh-body: 1.5;
+
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
+  --sp-6: 24px; --sp-7: 28px; --sp-8: 32px; --sp-9: 36px; --sp-10: 40px;
+  --pad: 1;                  /* density multiplier for padding */
+  --control-h: 32px;
+  --row-h: 36px;
+
+  --radius: 8px; --radius-sm: 4px; --radius-pill: 999px;
+
+  --rail-w: 232px; --rail-w-collapsed: 64px;
+  --topbar-h: 56px; --pulse-h: 28px;
+  --content-max: 1600px; --gutter: 24px;
+  --icon: 20px; --icon-sm: 16px; --icon-stroke: 1.5;
+
+  --dur-fast: 120ms; --dur: 200ms; --dur-slow: 320ms;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --rise: 8px; --press-scale: .98;
+
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+
+  --z-rail: 20; --z-topbar: 30; --z-popover: 50; --z-modal: 60; --z-toast: 70;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Themes (DESIGN § 1.2). Series sets: dark themes use the dark set.         */
+/* ------------------------------------------------------------------------ */
+:root, [data-theme="midnight"] {
+  color-scheme: dark;
+  --bg: #0b0e14; --surface: #121722; --surface-2: #182030; --surface-3: #1f2940;
+  --border: rgba(255, 255, 255, .08);
+  --text: #e8ebf1; --text-2: #a3acbd; --text-muted: #6b7488;
+  --accent: #5b8cff; --accent-fg: #ffffff;
+  --gain-market: #2fbf71; --loss: #f0616d;
+  --grid: #1d2433; --axis: #2c3548;
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, .24);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+}
+[data-theme="paper"] {
+  color-scheme: light;
+  --bg: #f9f9f7; --surface: #fcfcfb; --surface-2: #f0efec; --surface-3: #e6e4df;
+  --border: rgba(11, 11, 11, .10);
+  --text: #0b0b0b; --text-2: #52514e; --text-muted: #898781;
+  --accent: #2a78d6; --accent-fg: #ffffff;
+  --gain-market: #0f7b3f; --loss: #c62f3b;
+  --grid: #e1e0d9; --axis: #c3c2b7;
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, .12);
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
+}
+[data-theme="terminal"] {
+  color-scheme: dark;
+  --font-ui: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #000000; --surface: #0a0a0a; --surface-2: #141414; --surface-3: #1f1f1f;
+  --border: #262626;
+  --text: #f5f5f5; --text-2: #c8c8c8; --text-muted: #7a7a7a;
+  --accent: #ffb000; --accent-fg: #000000;
+  --gain-market: #33d17a; --loss: #ff5c57;
+  --grid: #1a1a1a; --axis: #333333;
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, .24);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+}
+[data-theme="saffron"] {
+  color-scheme: light;
+  --bg: #fbf7f0; --surface: #fffdf9; --surface-2: #f4ede1; --surface-3: #ebe1d0;
+  --border: rgba(31, 26, 20, .12);
+  --text: #1f1a14; --text-2: #5c5246; --text-muted: #8f8577;
+  --accent: #d9630a; --accent-fg: #ffffff;
+  --gain-market: #138808; --loss: #c0392b;
+  --grid: #ece3d4; --axis: #d8ccb8;
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, .12);
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --series-5: #e87ba4; --series-6: #008300; --series-7: #4a3aa7; --series-8: #e34948;
+}
+
+/* Derived roles: shared by every theme, so overrides (accent, custom themes) flow through. */
+:root, [data-theme] {
+  --gain: var(--gain-market);
+  --accent-soft: color-mix(in oklab, var(--accent) 16%, transparent);
+  --focus: var(--accent);
+  --div-neg: var(--loss); --div-mid: var(--surface-2); --div-pos: var(--gain);
+  --series-other: var(--text-muted);   /* series 9+ fold into grey (DESIGN § 7) */
+  --hover: var(--surface-2);
+  --selected: var(--surface-3);
+}
+[data-gainloss="colorblind"] { --gain: var(--series-1); }
+
+/* ------------------------------------------------------------------------ */
+/* Density, radius, motion                                                   */
+/* ------------------------------------------------------------------------ */
+[data-density="compact"] { --pad: .75; --control-h: 28px; --row-h: 28px; }
+
+[data-radius="none"] { --radius: 0px; --radius-sm: 0px; }
+[data-radius="sm"]   { --radius: 4px; --radius-sm: 2px; }
+[data-radius="md"]   { --radius: 8px; --radius-sm: 4px; }
+[data-radius="lg"]   { --radius: 14px; --radius-sm: 8px; }
+
+/* reduced: opacity changes only. off: no transitions at all (see base.css). */
+[data-motion="reduced"] { --rise: 0px; --press-scale: 1; }
+@media (prefers-reduced-motion: reduce) {
+  [data-motion="full"] { --rise: 0px; --press-scale: 1; }
+}
+
+@media (max-width: 767px) {
+  :root { --gutter: 16px; }
+}

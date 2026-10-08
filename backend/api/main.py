@@ -4,6 +4,7 @@ Run from backend/:  .venv\\Scripts\\python -m uvicorn api.main:app --reload --po
 """
 from __future__ import annotations
 
+import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -21,6 +22,22 @@ from .settings_store import SettingsStore
 from .storage import PROJECT_ROOT
 
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
+
+# Python reads MIME types from the Windows registry, which on some machines maps
+# .js to text/plain — browsers then refuse to run ES modules. Pin the ones we serve.
+for _ext, _type in {".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css",
+                    ".woff2": "font/woff2", ".svg": "image/svg+xml", ".json": "application/json"}.items():
+    mimetypes.add_type(_type, _ext)
+
+
+class FrontendFiles(StaticFiles):
+    """Static files that the browser must revalidate (ETag -> cheap 304), so an
+    edited JS module is never served stale from the heuristic cache."""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 def create_app(config_dir: Path | None = None, frontend_dir: Path | None = FRONTEND_DIR) -> FastAPI:
@@ -41,7 +58,7 @@ def create_app(config_dir: Path | None = None, frontend_dir: Path | None = FRONT
     for module in (settings, series, analytics, compare, sip, export, cache):
         app.include_router(module.router, prefix="/api")
     if frontend_dir is not None and frontend_dir.is_dir():
-        app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+        app.mount("/", FrontendFiles(directory=frontend_dir, html=True), name="frontend")
     return app
 
 

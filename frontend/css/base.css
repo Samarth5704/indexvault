@@ -1,0 +1,74 @@
+/* Reset, typography, focus, motion and utilities. Tokens only — no raw colours. */
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-body);
+  line-height: var(--lh-body);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+h1, h2, h3, h4 { margin: 0; font-weight: var(--fw-heading); line-height: var(--lh-tight); }
+h1 { font-size: var(--fs-xl); letter-spacing: -0.01em; }
+h2 { font-size: var(--fs-lg); }
+h3 { font-size: var(--fs-md); }
+p { margin: 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+img, svg { display: block; }
+table { border-collapse: collapse; }
+[hidden] { display: none !important; }
+
+/* Numbers: tabular figures everywhere they line up. */
+.num, .mono, td, th, input[type="number"] { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-mono); }
+
+/* Focus: 2px ring, 2px offset, keyboard only (DESIGN § 3). */
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+::selection { background: var(--accent-soft); }
+
+/* Scrollbars that recede. */
+* { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: var(--radius-pill); border: 3px solid transparent; background-clip: content-box; }
+
+/* Icons from the inline sprite (index.html). */
+.icon {
+  width: var(--icon); height: var(--icon); flex: none;
+  stroke: currentColor; stroke-width: var(--icon-stroke); fill: none;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.icon-sm { width: var(--icon-sm); height: var(--icon-sm); }
+
+/* Utilities */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.muted { color: var(--text-muted); }
+.text-2 { color: var(--text-2); }
+.gain { color: var(--gain); }
+.loss { color: var(--loss); }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Page transition: 8px rise + fade (DESIGN § 4). */
+@keyframes iv-rise { from { opacity: 0; transform: translateY(var(--rise)); } to { opacity: 1; transform: none; } }
+@keyframes iv-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes iv-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.page-enter { animation: iv-rise var(--dur-slow) var(--ease) both; }
+
+/* Motion off: nothing moves or fades. Reduced keeps opacity only (tokens set --rise: 0). */
+[data-motion="off"] *, [data-motion="off"] *::before, [data-motion="off"] *::after {
+  transition: none !important; animation: none !important;
+}
