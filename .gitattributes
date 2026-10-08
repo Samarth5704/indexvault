@@ -1,0 +1,4 @@
+# Vendored libraries and fonts must stay byte-identical to the sha256 sums in
+# frontend/vendor/VERSIONS.md, so Git must never rewrite their line endings.
+frontend/vendor/** -text
+*.woff2 binary
