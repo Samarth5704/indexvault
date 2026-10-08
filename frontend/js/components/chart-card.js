@@ -23,13 +23,15 @@ export function toCSV({ columns, rows }) {
   return [columns, ...rows].map((r) => r.map(cell).join(",")).join("\n");
 }
 
-function dataTable({ columns, rows, format = {} }) {
-  return h("div.table-wrap", { tabindex: "0", role: "region", "aria-label": "Chart data" },
+/** Plain (non-virtual) table: {columns, rows, format?: {column: fn}, label?}. Numbers right-aligned, negatives in --loss. */
+export function staticTable({ columns, rows, format = {}, label = "Chart data" }) {
+  return h("div.table-wrap", { tabindex: "0", role: "region", "aria-label": label },
     h("table.data-table",
       h("thead", h("tr", columns.map((c) => h("th", { scope: "col" }, c)))),
       h("tbody", rows.map((r) => h("tr", r.map((v, i) => {
         const f = format[columns[i]] || (typeof v === "string" && ISO_DATE.test(v) ? fmt.date : null);
-        return h(typeof v === "number" ? "td.num" : "td", f ? f(v) : v ?? "—");
+        const tag = typeof v === "number" ? (v < 0 ? "td.num.neg" : "td.num") : "td";
+        return h(tag, f ? f(v) : v ?? "—");
       }))))));
 }
 
@@ -65,7 +67,7 @@ export function chartCard({ title, subtitle = "", filename = "chart", data = nul
     tableBtn.setAttribute("aria-pressed", String(on));
     body.hidden = on;
     tableSlot.hidden = !on;
-    if (on) tableSlot.replaceChildren(dataTable(data()));
+    if (on) tableSlot.replaceChildren(staticTable(data()));
   }
 
   const show = (node) => { setTable(false); body.replaceChildren(node); };

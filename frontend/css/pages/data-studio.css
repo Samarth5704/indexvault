@@ -2,14 +2,6 @@
 
 .studio { overflow: hidden; }
 .studio-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; padding: var(--sp-3) var(--sp-4); }
-.series-tabs { display: flex; gap: var(--sp-1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.series-tab {
-  display: inline-flex; align-items: center; gap: var(--sp-2); flex: none;
-  height: var(--control-h); padding: 0 var(--sp-3); border: 1px solid transparent; border-radius: var(--radius-sm);
-  background: transparent; color: var(--text-2); font-weight: var(--fw-label); white-space: nowrap;
-}
-.series-tab:hover { background: var(--hover); color: var(--text); }
-.series-tab[aria-selected="true"] { background: var(--selected); color: var(--text); border-color: var(--border); }
 .studio-toolbar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .studio-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .jump { display: flex; gap: var(--sp-2); }

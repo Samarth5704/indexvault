@@ -153,6 +153,11 @@ square, drawn in `--accent`.
 - Tooltips: a crosshair with a unified tooltip on time series and per-mark tooltips on bars
   and cells. Values are formatted with user settings.
 - Every chart gets a "view as table" toggle and PNG/CSV export.
+- **Implementation notes (M4):** time series use Lightweight Charts (crosshair sync across a
+  page's time charts), everything else ECharts. The TradingView attribution logo stays on
+  (its licence asks for attribution). The "range brush" is the chart's own drag-to-pan /
+  wheel-to-zoom. Big daily moves are marked on the bar that contains them (largest 60).
+  Overlay lines (SMA/EMA) take the palette slots after the series' own colour.
 - **Custom palettes** (Settings → Theme editor): run a colour-blind check in JS by
   simulating protan/deutan/tritan vision, computing OKLab ΔE between adjacent colours,
   and warning below 8. Also check normal-vision ΔE (warn below 15) and contrast against

@@ -296,3 +296,18 @@ th:hover .th-menu, .th-menu:focus-visible { opacity: 1; }
 .radio-card:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 .radio-title { font-weight: var(--fw-label); }
 .radio-hint { grid-column: 2; color: var(--text-muted); font-size: var(--fs-xs); }
+
+/* ---------------------------------------------------------------- series tabs, toggles */
+.series-tabs { display: flex; gap: var(--sp-1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.series-tab {
+  display: inline-flex; align-items: center; gap: var(--sp-2); flex: none;
+  height: var(--control-h); padding: 0 var(--sp-3); border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-2); font-weight: var(--fw-label); white-space: nowrap;
+}
+.series-tab:hover { background: var(--hover); color: var(--text); }
+.series-tab[aria-selected="true"] { background: var(--selected); color: var(--text); border-color: var(--border); }
+.chip-toggle { cursor: pointer; padding-right: var(--sp-2); color: var(--text-2); background: transparent; }
+.chip-toggle[aria-pressed="true"] { color: var(--text); background: var(--surface-2); border-color: var(--axis); }
+.chip-toggle[aria-pressed="false"] .chip-dot { opacity: .35; }
+.btn.toggle[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.data-table td.neg { color: var(--loss); }

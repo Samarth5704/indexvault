@@ -23,6 +23,7 @@ Design rules: `docs/DESIGN.md`. API shapes: `docs/API.md`.
 | `js/dom.js` · `js/fuzzy.js` · `js/clipboard.js` | `h()` element helper, `icon()`, focus trap; fuzzy matching; copy with fallbacks |
 | `js/columns.js` | Series column ids (`close`, `sma_50`, …) → labels, kinds, cell formatting, defaults |
 | `js/components/` | `series-picker`, `date-range` (+ `freqSelect`), `command-palette`, `toast`, `kpi-card`, `chart-card`, `feedback` (skeleton, empty/error state, status pill, `asyncView`), `data-table` (virtual scroll, sort, column menu), `drawer`, `column-builder`, `export-panel` |
+| `js/charts/` | `vendor.js` (lazy-loads the libraries), `theme.js` (tokens → chart colours), `timeseries.js` (Lightweight Charts: line/area/candle/underwater, markers, log, PNG), `echarts.js` (host + heatmap/bars/histogram builders), `sync.js` (crosshair sync) |
 | `js/pages/` | One module per page: `export default { mount(el, ctx) -> cleanup? }` |
 | `vendor/` · `fonts/` | Lightweight Charts, ECharts, Inter, JetBrains Mono — see `vendor/VERSIONS.md` |
 

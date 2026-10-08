@@ -1,0 +1,39 @@
+/* Analyse (SPEC § 3.3) */
+
+.analyse-tabs { margin: calc(-1 * var(--sp-3)) 0 var(--sp-4); }
+.analyse-top { display: flex; flex-direction: column; gap: var(--sp-4); }
+.grid > .span-12 { grid-column: span 12; }
+
+/* Trailing returns row */
+.trailing { padding: var(--sp-3) var(--sp-4); }
+.trailing .section-title { margin-bottom: var(--sp-2); }
+.trailing-list { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-6); margin: 0; padding: 0; list-style: none; }
+.trailing-item { display: flex; flex-direction: column; gap: 2px; min-width: 64px; }
+.trailing-period { color: var(--text-muted); font-size: var(--fs-xs); font-weight: var(--fw-label); }
+.trailing-value { font-size: var(--fs-md); font-weight: var(--fw-label); }
+.trailing-value[data-tone="gain"] { color: var(--gain); }
+.trailing-value[data-tone="loss"] { color: var(--loss); }
+
+/* Chart bodies */
+.plot { width: 100%; }
+.plot-scroll { overflow-x: auto; }
+.plot-scroll > .plot { min-width: 720px; }
+.chart-card .chart-body { min-height: 0; }
+.insight { margin-top: var(--sp-3); color: var(--text-2); font-size: var(--fs-sm); }
+.price-wrap { display: flex; flex-direction: column; gap: var(--sp-2); }
+.chart-controls { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+.overlay-toggles { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.readout { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); min-height: 1.5em; font-size: var(--fs-xs); color: var(--text); }
+.dd-table-card .table-wrap { max-height: 320px; }
+.dd-table-card .data-table th, .dd-table-card .data-table td { padding: 0 var(--sp-2); white-space: nowrap; }
+.dd-table-card .data-table th:nth-child(n+2) { text-align: left; }
+.dd-table-card .data-table td:last-child, .dd-table-card .data-table th:last-child { text-align: right; }
+.all-stats { display: flex; flex-direction: column; gap: var(--sp-3); }
+.all-stats .data-table th:nth-child(2), .all-stats .data-table td:nth-child(2) { text-align: right; }
+
+@media (min-width: 1024px) {
+  .grid > .span-12 { grid-column: span 12; }
+}
+@media (max-width: 767px) {
+  .trailing-list { gap: var(--sp-2) var(--sp-4); }
+}

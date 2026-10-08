@@ -10,11 +10,12 @@ import { dataTable } from "../components/data-table.js";
 import { openExportPanel } from "../components/export-panel.js";
 import { emptyState, errorState, skeleton } from "../components/feedback.js";
 import { seriesName } from "../components/series-picker.js";
+import { activeTicker, seriesTabs } from "../components/series-tabs.js";
 import { runJobWithToast, toast } from "../components/toast.js";
 import { h, icon } from "../dom.js";
 import { setPageParams } from "../router.js";
 import { format, settings } from "../settings.js";
-import { rangeParams, selection, seriesColour, setSelection, store } from "../store.js";
+import { rangeParams, selection, setSelection, store } from "../store.js";
 
 const MARKDOWN_SOFT_LIMIT = 200;
 
@@ -31,12 +32,8 @@ export default {
   mount(el, ctx) {
     const params = () => store.get().route.params;
     const cols = () => columnsFromParam(params().cols) || [...DEFAULT_COLUMNS];
-    const active = () => {
-      const { series } = selection();
-      return series.includes(params().t) ? params().t : series[0];
-    };
-
-    const tabs = h("div.series-tabs", { role: "tablist", "aria-label": "Series" });
+    const active = activeTicker;
+    const tabs = seriesTabs();
     const meta = h("p.studio-meta.text-2", { "aria-live": "polite" });
     const caveats = h("div.caveats");
     const jumpInput = h("input.input", { type: "date", "aria-label": "Jump to date" });
@@ -64,7 +61,7 @@ export default {
       h("header.page-head", h("div", h("h1", "Data Studio"),
         h("p.page-sub", "Prices and derived columns at any frequency. Sort, reshape and export exactly what you see."))),
       h("section.card.studio",
-        h("div.studio-top", tabs, toolbar),
+        h("div.studio-top", tabs.el, toolbar),
         h("div.studio-info", meta, caveats),
         tableSlot));
 
@@ -88,7 +85,7 @@ export default {
 
     async function refresh() {
       const { series, freq } = selection();
-      renderTabs();
+      tabs.render();
       if (!series.length) {
         hasTable = false;
         meta.textContent = "";
@@ -128,25 +125,6 @@ export default {
         if (mine === token) tableSlot.removeAttribute("aria-busy");
       }
     }
-
-    function renderTabs() {
-      const { series } = selection();
-      const cur = active();
-      tabs.replaceChildren(...series.map((t) => h("button.series-tab", {
-        type: "button", role: "tab", "aria-selected": String(t === cur), tabindex: t === cur ? "0" : "-1",
-        onclick: () => setPageParams({ ...params(), t }),
-      }, h("span.chip-dot", { style: { background: seriesColour(t) }, "aria-hidden": "true" }), seriesName(t))));
-    }
-
-    tabs.addEventListener("keydown", (e) => {
-      if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
-      const list = [...tabs.children];
-      const i = list.indexOf(document.activeElement);
-      const next = list[(i + (e.key === "ArrowRight" ? 1 : -1) + list.length) % list.length];
-      next?.focus();
-      next?.click();
-      e.preventDefault();
-    });
 
     // ------------------------------------------------------------ actions
     jumpForm.addEventListener("submit", (e) => {

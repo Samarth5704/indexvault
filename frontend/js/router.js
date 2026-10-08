@@ -30,9 +30,12 @@ function onHashChange() {
     return;
   }
   const { selection } = store.get();
+  const next = selectionFromQuery(query, selection);
   store.set({
     route: { page, params: pageParams(query) },
-    selection: selectionFromQuery(query, selection),
+    // Keep the same object when nothing changed, so a page-param change (e.g. a
+    // chart toggle) doesn't look like a new selection and re-render whole pages.
+    selection: selectionToQuery(next) === selectionToQuery(selection) ? selection : next,
   });
   syncUrl(); // normalise (adds defaults like p=10Y&f=D)
 }
