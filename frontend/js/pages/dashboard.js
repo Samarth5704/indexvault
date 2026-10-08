@@ -6,7 +6,7 @@ import { confirmDialog } from "../components/confirm.js";
 import { emptyState } from "../components/feedback.js";
 import { toast, toastError } from "../components/toast.js";
 import { widgetGrid } from "../components/widget-grid.js";
-import { h, icon } from "../dom.js";
+import { h, icon, prefersReducedMotion } from "../dom.js";
 import { findSpot, sameLayout } from "../grid-layout.js";
 import { setPageParams } from "../router.js";
 import { saveSection, settings } from "../settings.js";
@@ -85,7 +85,7 @@ export default {
         grid.setLayout([...layout, item]);
         persist(grid.layout());
         if (!editing) setEditing(true);
-        requestAnimationFrame(() => el.querySelector(`.wg-item[data-id="${item.id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+        requestAnimationFrame(() => el.querySelector(`.wg-item[data-id="${item.id}"]`)?.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" }));
       });
     }
 

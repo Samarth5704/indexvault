@@ -6,7 +6,7 @@ import { api } from "../api.js";
 import { confirmDialog } from "../components/confirm.js";
 import { emptyState, errorState, skeleton } from "../components/feedback.js";
 import { toast, toastError } from "../components/toast.js";
-import { h, icon } from "../dom.js";
+import { h, icon, prefersReducedMotion } from "../dom.js";
 import { setPageParams } from "../router.js";
 import { applySettings, resetSection, settings } from "../settings.js";
 import { store } from "../store.js";
@@ -82,7 +82,7 @@ export default {
     function goTo(id, { smooth = true, focus = true } = {}) {
       const target = sectionEls.find((s) => s.dataset.id === id);
       if (!target) return;
-      target.scrollIntoView({ behavior: smooth && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto", block: "start" });
+      target.scrollIntoView({ behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto", block: "start" });
       if (focus) target.querySelector("h2")?.focus({ preventScroll: true });
       setPageParams({ section: id });
     }

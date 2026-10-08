@@ -62,3 +62,20 @@ export async function asyncView(el, { load, render, isEmpty = () => false, empty
     el.removeAttribute("aria-busy");
   }
 }
+
+/**
+ * Run load() for a chart card: skeleton first, error state with retry on failure.
+ * onError(e, retry) lets other panels fed by the same request show the error too,
+ * so nothing is left on a skeleton forever.
+ */
+export async function guard(card, load, onError = null) {
+  card.loading();
+  try {
+    await load();
+  } catch (e) {
+    if (e.name === "AbortError") return;
+    const retry = () => guard(card, load, onError);
+    card.error(e, retry);
+    onError?.(e, retry);
+  }
+}

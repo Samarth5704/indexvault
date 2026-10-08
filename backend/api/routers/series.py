@@ -39,13 +39,27 @@ def names(ctx: AppContext) -> dict[str, str]:
     return {c.ticker: c.name for c in ctx.catalog.get().custom_indices}
 
 
-def caveats(ticker: str, source: str) -> list[str]:
+def volume_available(ticker: str, df: pd.DataFrame | None = None) -> bool:
+    """Real volume for this series? The catalogue says indices have none, but Yahoo
+    has started sending volume for some (e.g. ^NSEI), so the data gets the last word:
+    a series counts as having volume when most of its rows do."""
+    if has_volume(ticker):
+        return True
+    if df is None:
+        return False
+    col = next((c for c in ("Volume", "volume") if c in df.columns), None)
+    if col is None or df.empty:
+        return False
+    return bool((df[col].fillna(0) > 0).mean() > 0.5)
+
+
+def caveats(ticker: str, source: str, df: pd.DataFrame | None = None) -> list[str]:
     out = []
     if source == "demo":
         out.append("Synthetic demo data — not real market prices.")
     if ticker.startswith("^") and source == "yahoo":
         out.append("Price index: excludes dividends (TRI is ~1–1.5% p.a. higher).")
-    if not has_volume(ticker):
+    if not volume_available(ticker, df):
         out.append("Volume is not available for this series.")
     return out
 
@@ -134,7 +148,7 @@ def get_series(
         "ticker": ticker, "name": display_name(ticker, names(ctx)), "source": source, "freq": freq,
         **frame_payload(table),
         "meta": {"rows": len(table), "first": table.index[0], "last": table.index[-1],
-                 "has_volume": has_volume(ticker), "caveats": caveats(ticker, source)},
+                 "has_volume": volume_available(ticker, daily), "caveats": caveats(ticker, source, daily)},
     }
 
 

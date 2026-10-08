@@ -5,7 +5,7 @@
 import { api } from "../api.js";
 import { barsOption, createEChart } from "../charts/echarts.js";
 import { chartCard, staticTable } from "../components/chart-card.js";
-import { emptyState } from "../components/feedback.js";
+import { emptyState, errorState, guard, skeleton } from "../components/feedback.js";
 import { seriesName } from "../components/series-picker.js";
 import { activeTicker, seriesTabs } from "../components/series-tabs.js";
 import { h, icon } from "../dom.js";
@@ -15,10 +15,6 @@ import { rangeParams, selection, store } from "../store.js";
 
 const pct = (v, d) => format.pct(v, d == null ? {} : { decimals: d });
 
-async function guard(card, fn) {
-  card.loading();
-  try { await fn(); } catch (e) { card.error(e, () => guard(card, fn)); }
-}
 
 export default {
   mount(el, ctx) {
@@ -89,10 +85,11 @@ export default {
           format: { Mean: (v) => pct(v, 3), Positive: (v) => pct(v, 1), Volatility: (v) => pct(v), Days: (v) => format.number(v, { decimals: 0 }) } }) });
       days.el.classList.add("span-12");
       body.replaceChildren(caution, h("div.grid", months.el, tableCard, days.el));
-      tableBody.replaceChildren(h("div.skeleton", h("div.sk-line"), h("div.sk-line"), h("div.sk-line")));
+      tableBody.replaceChildren(skeleton({ lines: 3 }));
 
       await Promise.all([
         guard(months, async () => {
+          tableBody.replaceChildren(skeleton({ lines: 3 }));
           m = await api.get("/analytics/seasonality", { ticker: st.ticker, min_years: st.minYears, ...range });
           if (mine !== token) return;
           const plot = h("div.plot");
@@ -107,7 +104,7 @@ export default {
           tableBody.replaceChildren(staticTable({ label: "Seasonality by month", columns: ["Month", label, "Hit rate", "Best", "Worst", "Years"],
             rows: m.months.map((r) => [r.enough_data ? r.month : `${r.month}*`, r[key], r.positive, r.best, r.worst, r.years]),
             format: { [label]: (v) => pct(v), "Hit rate": (v) => pct(v, 0), Best: (v) => pct(v, 1), Worst: (v) => pct(v, 1) } }));
-        }).catch(() => {}),
+        }, (e, retry) => { if (mine === token) tableBody.replaceChildren(errorState(e, { onRetry: retry })); }), // the table shares this request
         guard(days, async () => {
           w = await api.get("/analytics/weekday", { ticker: st.ticker, ...range });
           if (mine !== token) return;

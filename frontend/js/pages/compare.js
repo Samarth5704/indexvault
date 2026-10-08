@@ -8,7 +8,7 @@ import { createSyncGroup } from "../charts/sync.js";
 import { resolveColour } from "../charts/theme.js";
 import { createTimeChart } from "../charts/timeseries.js";
 import { chartCard, staticTable } from "../components/chart-card.js";
-import { emptyState } from "../components/feedback.js";
+import { emptyState, errorState, guard, skeleton } from "../components/feedback.js";
 import { seriesLegend, tooManySeriesNote } from "../components/legend.js";
 import { seriesName } from "../components/series-picker.js";
 import { h, icon } from "../dom.js";
@@ -25,10 +25,6 @@ function select(label, options, value, onChange) {
       options.map(([v, text]) => h("option", { value: v, selected: v === value }, text))));
 }
 
-async function guard(card, fn) {
-  card.loading();
-  try { await fn(); } catch (e) { card.error(e, () => guard(card, fn)); }
-}
 
 export default {
   mount(el, ctx) {
@@ -125,10 +121,11 @@ export default {
       rcCard.el.classList.add("span-6");
 
       body.replaceChildren(...[tooManySeriesNote(st.series.length), h("div.grid", growth.el, metricsCard, corr.el, scatter.el, rsCard.el, rcCard.el)].filter(Boolean));
-      metricsBody.replaceChildren(h("div.skeleton", h("div.sk-line"), h("div.sk-line"), h("div.sk-line")));
+      metricsBody.replaceChildren(skeleton({ lines: 3 }));
 
       const main = guard(growth, async () => {
         corr.loading(); scatter.loading();
+        metricsBody.replaceChildren(skeleton({ lines: 3 }));
         cmp = await api.get("/analytics/compare", { tickers: st.series, benchmark: st.bench, freq: st.cf, ...range });
         if (mine !== token) return;
         // growth
@@ -165,6 +162,12 @@ export default {
           points: cmp.scatter.map((p) => ({ name: seriesName(p.ticker), x: p.ann_vol, y: p.cagr, colour: resolveColour(seriesColour(p.ticker)) })),
           fmt: (v, d) => pct(v, d ?? 1) }), { height: Math.max(240, names.length * 40 + 60) });
         track(() => scatterChart.destroy());
+      }, (e, retry) => {
+        // metrics, correlation and scatter all come from the same request: fail them together
+        if (mine !== token) return;
+        corr.error(e, retry);
+        scatter.error(e, retry);
+        metricsBody.replaceChildren(errorState(e, { onRetry: retry }));
       });
 
       const pair = Promise.all([

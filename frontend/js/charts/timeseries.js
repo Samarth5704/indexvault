@@ -1,10 +1,16 @@
-// Time-series charts on TradingView Lightweight Charts (price, underwater, rolling vol).
-// DESIGN § 7: one y-axis, 2px lines, 1px --grid gridlines, no borders, colours from
+﻿// Time-series charts on TradingView Lightweight Charts (price, underwater, rolling vol).
+// DESIGN Â§ 7: one y-axis, 2px lines, 1px --grid gridlines, no borders, colours from
 // tokens (re-themed live), unified crosshair readout.
 
 import { format } from "../settings.js";
 import { chartTokens, onThemeChange, resolveColour, withAlpha } from "./theme.js";
+import { lttb } from "./lttb.js";
 import { lightweight } from "./vendor.js";
+
+// Long line/area series are thinned with LTTB to ~2 points per pixel; zooming in
+// past FULL_DETAIL_SPAN of the range swaps the real data back in.
+const THIN_ABOVE = 2500;
+const FULL_DETAIL_SPAN = 0.4;
 
 /** LW time (string | BusinessDay | UTCTimestamp) -> "YYYY-MM-DD". */
 export function isoTime(t) {
@@ -28,7 +34,7 @@ export async function createTimeChart(container, { height = 320, valueFormat = (
     autoSize: true, width: container.clientWidth, height, ...baseOptions(LW, valueFormat),
   });
   // autoSize measures asynchronously: a fitContent() before the real width is
-  // known fits into 0px and falls back to default bar spacing (≈ the last 9 months
+  // known fits into 0px and falls back to default bar spacing (â‰ˆ the last 9 months
   // of daily bars). So re-fit once the size arrives, unless the user has zoomed.
   let pendingFit = false, userMoved = false;
   const sizer = new ResizeObserver(([entry]) => {
@@ -67,10 +73,12 @@ export async function createTimeChart(container, { height = 320, valueFormat = (
     live.clear();
     chart.applyOptions(baseOptions(LW, valueFormat));
     chart.priceScale("right").applyOptions({ mode: logScale ? LW.PriceScaleMode.Logarithmic : LW.PriceScaleMode.Normal });
+    const thinned = thinAll(defs);
     for (const def of defs) {
       const [kind, opts] = seriesOptions(def, t);
       const api = chart.addSeries(kind, opts);
-      api.setData(def.data);
+      const shown = thinned.get(def);
+      api.setData(shown);
       for (const pl of def.priceLines || []) {
         api.createPriceLine({ price: pl.price, title: pl.title || "", color: resolveColour(pl.colour) || t.text2,
           lineWidth: 1, lineStyle: LW.LineStyle.Dashed, axisLabelVisible: true });
@@ -79,8 +87,8 @@ export async function createTimeChart(container, { height = 320, valueFormat = (
         time: m.time, position: m.position, shape: m.shape, text: m.text || "",
         color: resolveColour(m.colour) || t.text2,
       }))) : null;
-      const values = new Map(def.data.map((d) => [isoTime(d.time), d]));
-      live.set(def.id, { api, def, times: def.data.map((d) => isoTime(d.time)), values, markers });
+      const values = new Map(def.data.map((d) => [isoTime(d.time), d])); // readouts use the full data
+      live.set(def.id, { api, def, shown, times: shown.map((d) => isoTime(d.time)), values, markers });
     }
     if (range) chart.timeScale().setVisibleLogicalRange(range);
     else {
@@ -89,6 +97,38 @@ export async function createTimeChart(container, { height = 320, valueFormat = (
       setTimeout(() => { if (!userMoved) chart.timeScale().fitContent(); }, 50);
     }
   }
+
+  /** def -> data to draw. Long series are LTTB-thinned; several thinned series on one
+   *  chart share the union of their kept dates, so they stay aligned on the time axis
+   *  and in crosshair readouts. */
+  function thinAll(list) {
+    const out = new Map(list.map((d) => [d, d.data]));
+    const long = list.filter((d) => d.type !== "candle" && d.data.length > THIN_ABOVE);
+    if (!long.length) return out;
+    const target = Math.min(THIN_ABOVE, Math.max(1200, Math.round((container.clientWidth || 800) * 2)));
+    const kept = long.map((d) => lttb(d.data, target, { keep: d.markers?.length ? new Set(d.markers.map((m) => m.time)) : null }));
+    if (long.length === 1) return out.set(long[0], kept[0]);
+    const union = new Set(kept.flatMap((pts) => pts.map((p) => p.time)));
+    for (const d of long) out.set(d, d.data.filter((p) => union.has(p.time)));
+    return out;
+  }
+
+  // Zoomed in far enough: show every point of the thinned series (once).
+  chart.timeScale().subscribeVisibleTimeRangeChange((range) => {
+    if (!range) return;
+    const thinned = [...live.values()].filter((s) => s.shown !== s.def.data);
+    if (!thinned.length) return;
+    const all = thinned[0].def.data;
+    const span = (t) => new Date(isoTime(t)).getTime();
+    const full = span(all.at(-1).time) - span(all[0].time);
+    if (!full || (span(range.to) - span(range.from)) / full > FULL_DETAIL_SPAN) return;
+    for (const s of thinned) {
+      s.api.setData(s.def.data);
+      s.shown = s.def.data;
+      s.times = s.def.data.map((d) => isoTime(d.time));
+    }
+    chart.timeScale().setVisibleRange(range);
+  });
 
   chart.subscribeCrosshairMove((param) => {
     const time = param.time ? isoTime(param.time) : null;
@@ -115,7 +155,7 @@ export async function createTimeChart(container, { height = 320, valueFormat = (
       if (!first) return;
       const i = lastIndexOnOrBefore(first.times, time);
       if (i < 0) return chart.clearCrosshairPosition();
-      const d = first.def.data[i];
+      const d = first.shown[i];
       chart.setCrosshairPosition(d.value ?? d.close, d.time, first.api);
     },
     hideCrosshair: () => chart.clearCrosshairPosition(),

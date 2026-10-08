@@ -13,13 +13,13 @@ from fastapi import APIRouter, Depends, Query
 from scipy import stats as sps
 
 from indexvault import analytics as an
-from indexvault.indices import display_name, has_volume
+from indexvault.indices import display_name
 
 from ..context import AppContext, get_ctx
 from ..errors import bad_request
 from ..jsonutil import JsonableRoute, convert_record, convert_rows, iso_dates, series_payload
 from ..metrics import METRICS, from_core
-from .series import names
+from .series import names, volume_available
 
 router = APIRouter(prefix="/analytics", route_class=JsonableRoute)
 
@@ -189,7 +189,7 @@ def weekday(ticker: str, start: date | None = None, end: date | None = None,
 # Data health
 # --------------------------------------------------------------------------- #
 def _quality(df: pd.DataFrame, ticker: str, big_move: float, gap_days: int) -> dict:
-    q = an.data_quality(df, has_volume(ticker), big_move=big_move, gap_days=gap_days)
+    q = an.data_quality(df, volume_available(ticker, df), big_move=big_move, gap_days=gap_days)
     gaps = q.pop(f"Gaps > {gap_days} calendar days")
     moves = q.pop(next(k for k in q if k.startswith("Days with |move|")))
     zero_vol = q.pop("Zero-volume days")

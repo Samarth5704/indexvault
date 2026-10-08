@@ -40,7 +40,6 @@ config/
   settings.json    user settings (created on first run from defaults; git-ignored)
   catalog.json     user's custom indices & watchlists (git-ignored)
 docs/
-legacy/            old Streamlit prototype — reference only, never import
 ```
 
 ## Rules
@@ -89,4 +88,7 @@ tests, then regenerate the lock (see the header of requirements.lock).
 ## Data caveats (surface these in the UI where relevant)
 - Yahoo index levels are price indices (no dividends); TRI is ~1–1.5% p.a. higher.
 - Yahoo is unofficial; tickers can change — the Cache page has a ticker health check.
-- Index volume is zero on Yahoo; only stocks/ETFs have volume.
+- Index volume used to be zero on Yahoo; some indices (e.g. ^NSEI) now carry it. The API
+  decides per series from the data (`volume_available` in `api/routers/series.py`).
+- Yahoo serves only the latest day for some NSE sectoral tickers; widgets name them and
+  the cache retries a backfill at most once a day.

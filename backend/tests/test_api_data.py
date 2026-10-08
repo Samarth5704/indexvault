@@ -232,3 +232,18 @@ def test_no_nan_in_json(client):
     r = client.get(f"/api/series/{NIFTY}?period=1Y&columns=close,sma_200")
     assert "NaN" not in r.text
     assert np.isfinite([v for row in r.json()["rows"] for v in row[1:] if v is not None]).all()
+
+
+def test_volume_available_follows_the_data():
+    """Indices are assumed to have no volume, but if the source does send it the API says so."""
+    import pandas as pd
+    from api.routers.series import caveats, volume_available
+    idx = pd.bdate_range("2024-01-01", periods=10)
+    with_vol = pd.DataFrame({"Close": 1.0, "Volume": 1000.0}, index=idx)
+    no_vol = pd.DataFrame({"Close": 1.0, "Volume": 0.0}, index=idx)
+    assert volume_available("^NSEI", with_vol)
+    assert not volume_available("^NSEI", no_vol)
+    assert not volume_available("^NSEI")                 # no data: fall back to the catalogue
+    assert volume_available("NIFTYBEES.NS")              # stocks/ETFs always have volume
+    assert "Volume is not available for this series." not in caveats("^NSEI", "yahoo", with_vol)
+    assert "Volume is not available for this series." in caveats("^NSEI", "yahoo", no_vol)

@@ -157,3 +157,10 @@
   .selection-sheet .seg[data-minor] { display: inline-flex; }
   .page { padding-top: var(--sp-4); }
 }
+
+/* Source badge: full name, or just its first word on narrow phones. */
+.source-badge .badge-short { display: none; }
+@media (max-width: 479px) {
+  .source-badge .badge-long { display: none; }
+  .source-badge .badge-short { display: inline; }
+}

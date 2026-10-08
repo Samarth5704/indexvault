@@ -23,8 +23,8 @@ so that other students could clone it from GitHub and run it.
 | `analytics.py` | CAGR, vol, drawdown series + episode table, `summary_metrics()` (Sharpe, Sortino, Calmar, VaR, CVaR, skew, kurtosis, best/worst, 52w), trailing returns, monthly-returns grid, seasonality, weekday stats, rolling CAGR + summary, rolling vol, SMAs, rebase, correlation (weekly), rolling correlation, beta, relative strength, XIRR, SIP backtest with step-up + lump-sum comparison, data-quality report, big moves |
 | `cli.py` | `list`, `fetch`, `update`, `stats` |
 
-`legacy/streamlit_app.py` shows every feature working end-to-end — use it as the
-behavioural reference.
+The Streamlit prototype (`legacy/streamlit_app.py`) was the behavioural reference
+during the build; it was removed in Milestone 9 and lives on in git history.
 
 Refactors needed in core (Milestone 1):
 - Replace hard-coded constants (`TD = 252`, `rf=0.065`, SMA `(50, 200)`, rolling

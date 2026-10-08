@@ -6,7 +6,7 @@ import { api, enc } from "../api.js";
 import { columnLabel } from "../columns.js";
 import { chartCard, staticTable } from "../components/chart-card.js";
 import { openDrawer } from "../components/drawer.js";
-import { emptyState, errorState, skeleton } from "../components/feedback.js";
+import { emptyState, errorState, guard, skeleton } from "../components/feedback.js";
 import { kpiCard } from "../components/kpi-card.js";
 import { seriesName } from "../components/series-picker.js";
 import { barsOption, createEChart, heatmapOption, histogramOption } from "../charts/echarts.js";
@@ -20,15 +20,6 @@ const pct = (v, decimals) => format.pct(v, decimals == null ? {} : { decimals })
 const series = (s) => s.dates.map((time, i) => ({ time, value: s.values[i] }));
 const share = (arr, pred) => (arr.length ? arr.filter(pred).length / arr.length : 0);
 
-/** Run load() for a card: skeleton first, error state with retry on failure. */
-async function guard(card, load) {
-  card.loading();
-  try {
-    await load();
-  } catch (e) {
-    if (e.name !== "AbortError") card.error(e, () => guard(card, load));
-  }
-}
 
 // --------------------------------------------------------------------------
 // KPI strip + trailing returns (share the summary/trailing payloads)

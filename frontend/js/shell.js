@@ -79,10 +79,12 @@ export function mountTopbar(el, { openPalette }) {
   const sync = () => {
     const s = store.get();
     const src = s.health?.sources?.find((x) => x.name === s.settings?.data.source);
-    sourceBadge.textContent = src ? src.label.replace(" (synthetic)", "") : s.settings?.data.source || "…";
+    const label = src ? src.label.replace(" (synthetic)", "") : s.settings?.data.source || "…";
+    // phones show the first word only ("Yahoo"), so the selection button keeps its room
+    sourceBadge.replaceChildren(h("span.badge-long", label), h("span.badge-short", { "aria-hidden": "true" }, label.split(" ")[0]));
     sourceBadge.dataset.tone = src?.name === "demo" ? "warning" : "neutral";
     sourceBadge.title = src?.name === "demo" ? "Synthetic demo data — not real prices. Click to switch." : "Data source. Click to switch.";
-    sourceBadge.setAttribute("aria-label", `Data source: ${sourceBadge.textContent}. Switch source`);
+    sourceBadge.setAttribute("aria-label", `Data source: ${label}. Switch source`);
     const dark = document.documentElement.dataset.scheme === "dark";
     themeBtn.replaceChildren(icon(dark ? "sun" : "moon"));
     themeBtn.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");

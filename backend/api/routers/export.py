@@ -135,10 +135,10 @@ def _about_sheet(ctx: AppContext, r: dict, source: str, tables, start_ts, end_ts
             ("Source", data.SOURCE_INFO[source].label), ("Frequency", r["freq"]),
             ("From", str(start_ts.date()) if start_ts is not None else "start of data"),
             ("To", str(end_ts.date())), ("Percent columns", "decimals (0.0123 = 1.23%)")]
-    for t, (name, _) in tables.items():
+    for t, (name, df) in tables.items():
         _, info = data.load_cached(t, source)
         rows.append((f"{name} ({t})", f"cache updated {info.get('last_update', 'n/a')}"))
-        rows += [("Caveat", c) for c in caveats(t, source)]
+        rows += [("Caveat", c) for c in caveats(t, source, df)]
     return pd.DataFrame(rows, columns=["Item", "Value"]).set_index("Item")
 
 
@@ -194,7 +194,7 @@ def export(body: ExportRequest, ctx: AppContext = Depends(get_ctx)):
                                         float_format=None, date_format=DATE_FORMATS[r["date_format"]][0])
     else:
         payload = {"source": source, "freq": r["freq"],
-                   "series": {t: {"name": name, **frame_payload(df), "caveats": caveats(t, source)}
+                   "series": {t: {"name": name, **frame_payload(df), "caveats": caveats(t, source, df)}
                               for t, (name, df) in tables.items()}}
         content = json.dumps(jsonable(payload), ensure_ascii=False, indent=1).encode("utf-8")
     name = _filename(r["tickers"], r["freq"], fmt)
