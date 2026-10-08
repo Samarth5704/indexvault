@@ -20,8 +20,9 @@ Design rules: `docs/DESIGN.md`. API shapes: `docs/API.md`.
 | `js/settings.js` | Applies settings to `<html>` live; `format.number/pct/money/date/delta/metric` |
 | `js/shell.js` · `js/pulse.js` | Rail, top bar, mobile sheets; market-pulse strip |
 | `js/commands.js` | Command-palette commands + global keyboard shortcuts (from settings) |
-| `js/dom.js` · `js/fuzzy.js` | `h()` element helper, `icon()`, focus trap; fuzzy matching |
-| `js/components/` | `series-picker`, `date-range` (+ `freqSelect`), `command-palette`, `toast`, `kpi-card`, `chart-card`, `feedback` (skeleton, empty/error state, status pill, `asyncView`) |
+| `js/dom.js` · `js/fuzzy.js` · `js/clipboard.js` | `h()` element helper, `icon()`, focus trap; fuzzy matching; copy with fallbacks |
+| `js/columns.js` | Series column ids (`close`, `sma_50`, …) → labels, kinds, cell formatting, defaults |
+| `js/components/` | `series-picker`, `date-range` (+ `freqSelect`), `command-palette`, `toast`, `kpi-card`, `chart-card`, `feedback` (skeleton, empty/error state, status pill, `asyncView`), `data-table` (virtual scroll, sort, column menu), `drawer`, `column-builder`, `export-panel` |
 | `js/pages/` | One module per page: `export default { mount(el, ctx) -> cleanup? }` |
 | `vendor/` · `fonts/` | Lightweight Charts, ECharts, Inter, JetBrains Mono — see `vendor/VERSIONS.md` |
 

@@ -30,6 +30,7 @@ def test_defaults_match_spec():
     a = s.analytics
     assert (a.risk_free_rate, a.trading_days, a.sma_windows) == (0.065, 252, [50, 200])
     assert a.correlation_frequency == "W" and a.target_cagr == 0.12
+    assert (a.rsi_window, a.rolling_vol_window, a.histogram_bins) == (14, 63, 50)
     assert a.kpi_cards[:2] == ["end_level", "cagr"]
     assert (s.sip.amount, s.sip.day, s.sip.step_up) == (10_000, 5, 0.0)
     assert s.shortcuts["palette"] == "mod+k"

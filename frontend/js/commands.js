@@ -2,6 +2,7 @@
 // (bindings come from settings.shortcuts; "mod" = Ctrl, or ⌘ on a Mac).
 
 import { api } from "./api.js";
+import { copyText } from "./clipboard.js";
 import { catalogIndex } from "./components/series-picker.js";
 import { runJobWithToast, toast, toastError } from "./components/toast.js";
 import { navigate } from "./router.js";
@@ -52,10 +53,10 @@ export function commandProvider(ui) {
       { id: "cache:update", group: "Actions", label: "Update cache", icon: "refresh", keywords: ["download", "refresh", "fetch"],
         run: () => runJobWithToast(() => api.post("/cache/update", {}), { title: "Updating cache", doneTitle: "Cache updated" })
           .then(() => api.invalidate()).catch(() => {}) },
-      { id: "export", group: "Actions", label: "Export current view", icon: "download",
-        run: () => toast({ title: "Export arrives with Data Studio", message: "Milestone 3 adds Excel, CSV and JSON exports of the current selection." }) },
+      { id: "export", group: "Actions", label: "Export current view", icon: "download", keywords: ["excel", "csv", "download"],
+        run: () => navigate("data", { ...(store.get().route.page === "data" ? store.get().route.params : {}), export: "1" }) },
       { id: "link", group: "Actions", label: "Copy link to this view", icon: "link",
-        run: () => navigator.clipboard.writeText(location.href).then(() => toast({ tone: "success", title: "Link copied" }), (e) => toastError(e)) },
+        run: () => copyText(location.href, { title: "Copy link" }).then((how) => { if (how === "copied") toast({ tone: "success", title: "Link copied" }); }) },
     );
     for (const src of store.get().health?.sources || []) {
       if (src.name === s.data.source || src.name === "csv") continue;

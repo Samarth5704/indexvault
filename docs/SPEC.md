@@ -200,6 +200,7 @@ are referenced by id from `api/metrics.py` (`cagr`, `ann_vol`, `max_drawdown`, â
     "ema_windows": [],
     "rolling_windows_years": [1, 3, 5, 7, 10],
     "rolling_vol_window": 63,
+    "rsi_window": 14,
     "correlation_frequency": "W",   // D | W | M (also used for beta)
     "rolling_corr_window": 52,      // periods of correlation_frequency
     "big_move_threshold": 0.05,     // also the Data Health big-move threshold

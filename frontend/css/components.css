@@ -236,3 +236,63 @@
 .status-pill[data-status="warning"] { --pill: var(--warning); }
 .status-pill[data-status="serious"] { --pill: var(--serious); }
 .status-pill[data-status="critical"] { --pill: var(--critical); }
+
+/* ---------------------------------------------------------------- virtual data table */
+.vtable { --vt-max: 70vh; }
+.vtable-scroll { max-height: var(--vt-max); overflow: auto; border-top: 1px solid var(--border); }
+.vtable-table { width: 100%; }
+.vtable-table th { padding: 0; z-index: 2; }
+.vtable-table th[data-kind="date"] { position: sticky; left: 0; z-index: 3; }
+.vtable-table td.td-date { position: sticky; left: 0; z-index: 1; background: var(--surface); white-space: nowrap; font-family: var(--font-mono); }
+.vtable-table tbody tr:hover td.td-date { background: var(--hover); }
+.vtable-table td { white-space: nowrap; }
+.vtable-table td.neg { color: var(--loss); }
+.vtable-table tr[data-highlight="true"] td { background: var(--accent-soft); }
+.vtable-table tr.vt-spacer td { padding: 0; border: 0; height: 0; }
+.th-inner { display: flex; align-items: center; justify-content: flex-end; gap: 2px; height: var(--row-h); padding: 0 var(--sp-1) 0 var(--sp-3); }
+th[data-kind="date"] .th-inner { justify-content: flex-start; }
+.th-sort { display: inline-flex; align-items: center; gap: var(--sp-1); min-width: 0; padding: 0; border: 0; background: none; color: inherit; font-weight: inherit; }
+.th-sort:hover { color: var(--text); }
+.sort-ind { min-width: 1ch; color: var(--accent); font-size: var(--fs-xs); }
+.th-menu { opacity: .5; }
+th:hover .th-menu, .th-menu:focus-visible { opacity: 1; }
+
+/* ---------------------------------------------------------------- menus */
+.menu { min-width: 180px; padding: var(--sp-1); display: flex; flex-direction: column; }
+.menu-item { display: flex; align-items: center; gap: var(--sp-2); height: var(--control-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-sm); background: none; color: var(--text-2); text-align: left; }
+.menu-item:hover, .menu-item:focus-visible { background: var(--hover); color: var(--text); outline-offset: -2px; }
+
+/* ---------------------------------------------------------------- drawer */
+.drawer-overlay { display: flex; justify-content: flex-end; }
+.drawer {
+  width: min(440px, 100vw); height: 100%; display: flex; flex-direction: column;
+  background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow-pop);
+  animation: iv-drawer var(--dur) var(--ease);
+}
+@keyframes iv-drawer { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+[data-motion="reduced"] .drawer { animation-name: iv-fade; }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); }
+.drawer-body { flex: 1; overflow-y: auto; padding: var(--sp-5); }
+.drawer-foot { padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--border); }
+.drawer-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+@media (max-width: 767px) {
+  .drawer-overlay { align-items: flex-end; }
+  .drawer {
+    width: 100%; height: auto; max-height: 90vh; border-left: 0; border-top: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0; animation-name: iv-sheet; padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ---------------------------------------------------------------- forms */
+.field-hint { color: var(--text-muted); font-size: var(--fs-sm); }
+.check { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h); cursor: pointer; }
+.check input, .radio-card input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.radio-cards { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.radio-card {
+  display: grid; grid-template-columns: auto 1fr; gap: 0 var(--sp-2); align-items: center; padding: var(--sp-3);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); cursor: pointer;
+}
+.radio-card:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.radio-card:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.radio-title { font-weight: var(--fw-label); }
+.radio-hint { grid-column: 2; color: var(--text-muted); font-size: var(--fs-xs); }

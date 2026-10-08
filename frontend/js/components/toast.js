@@ -65,17 +65,26 @@ export function toast(opts) {
 export const toastError = (error, title = "Something went wrong") =>
   toast({ tone: "error", title, message: error?.message || String(error) });
 
-/** Start-and-follow a background job (POST returning a job), with a live progress toast. */
-export async function runJobWithToast(start, { title, doneTitle = "Done" }) {
-  const t = toast({ title, message: "Starting…", progress: 0 });
+/**
+ * Start-and-follow a background job (POST returning a job), with a live progress toast.
+ * quiet: only show the toast if the job takes longer than QUIET_MS or has errors
+ * (so loading already-cached data doesn't flash a toast).
+ */
+const QUIET_MS = 500;
+export async function runJobWithToast(start, { title, doneTitle = "Done", quiet = false }) {
+  let t = null;
+  const show = () => { t ??= toast({ title, message: "Starting…", progress: 0 }); return t; };
+  const timer = quiet ? setTimeout(show, QUIET_MS) : (show(), null);
   try {
     const job = await start();
     const final = await api.followJob(job.id, (j) => {
       const current = j.items.find((i) => i.status === "running");
-      t.update({ progress: j.progress, message: `${j.completed}/${j.total}${current ? ` · ${current.ticker}` : ""}` });
+      t?.update({ progress: j.progress, message: `${j.completed}/${j.total}${current ? ` · ${current.ticker}` : ""}` });
     });
+    clearTimeout(timer);
     const failed = final.items.filter((i) => i.status === "error");
-    t.update({
+    if (quiet && !t && !failed.length) return final;
+    show().update({
       progress: null,
       tone: failed.length ? (failed.length === final.total ? "error" : "warning") : "success",
       title: failed.length ? `${doneTitle} with ${failed.length} error${failed.length > 1 ? "s" : ""}` : doneTitle,
@@ -83,7 +92,8 @@ export async function runJobWithToast(start, { title, doneTitle = "Done" }) {
     });
     return final;
   } catch (e) {
-    t.update({ tone: "error", progress: null, title: `${title} failed`, message: e.message });
+    clearTimeout(timer);
+    show().update({ tone: "error", progress: null, title: `${title} failed`, message: e.message });
     throw e;
   }
 }

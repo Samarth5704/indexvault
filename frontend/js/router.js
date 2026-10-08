@@ -19,7 +19,7 @@ function pageParams(query) {
 }
 
 function buildHash(page, sel, params = {}) {
-  const extra = new URLSearchParams(params).toString();
+  const extra = new URLSearchParams(params).toString().replaceAll("%2C", ",").replaceAll("%5E", "^");
   return `#/${page}?${selectionToQuery(sel)}${extra ? `&${extra}` : ""}`;
 }
 
@@ -52,6 +52,12 @@ export function navigate(page, params = {}, { replace = false } = {}) {
   } else {
     location.hash = hash;
   }
+}
+
+/** Replace the current page's params (keeps the selection; no history entry, no remount). */
+export function setPageParams(params) {
+  const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== ""));
+  navigate(store.get().route.page, clean, { replace: true });
 }
 
 /** Link target for a page that keeps the current selection. */

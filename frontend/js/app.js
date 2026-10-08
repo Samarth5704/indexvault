@@ -18,8 +18,10 @@ const view = document.getElementById("view");
 let current = { key: null, cleanup: null };
 let navToken = 0;
 
+// Pages remount only when the page changes; param changes (e.g. #/data?cols=…)
+// reach the mounted page through store.subscribe((s) => s.route.params, …).
 async function showPage(route, ctx, { focus }) {
-  const key = JSON.stringify(route);
+  const key = route.page;
   if (key === current.key) return;
   current.key = key;
   const mine = ++navToken;

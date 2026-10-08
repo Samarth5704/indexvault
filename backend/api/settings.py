@@ -141,6 +141,7 @@ class Analytics(Section):
     rolling_windows_years: Annotated[list[Annotated[int, Field(ge=1, le=30)]], AfterValidator(_unique)] = Field(
         default_factory=lambda: [1, 3, 5, 7, 10], min_length=1, max_length=8, description="Holding periods (years) for rolling returns.")
     rolling_vol_window: int = Field(63, ge=5, le=1000, description="Window (days) for rolling volatility.")
+    rsi_window: int = Field(14, ge=2, le=200, description="Default window (bars) for RSI columns.")
     correlation_frequency: Literal["D", "W", "M"] = Field("W", description="Return frequency for correlation and beta: daily, weekly or monthly.")
     rolling_corr_window: int = Field(52, ge=5, le=520, description="Rolling-correlation window, in periods of the correlation frequency.")
     big_move_threshold: float = Field(0.05, gt=0, le=0.5, description="Daily move (decimal) flagged as a big move.")
