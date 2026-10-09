@@ -32,7 +32,8 @@ Shapes below use `…` for repeated items.
 | `GET /settings/schema` | JSON Schema (`$defs.<Section>.properties.<field>.description/default/minimum/…`) — the Settings UI renders forms from it. UI hints: `x-unit:"pct"` (decimal shown as %), `x-options:[{value,label}]`, `x-ordered:true`, `format:"color"` |
 | `GET /settings/backup` | download: `{kind:"indexvault-backup", version:1, created, settings, catalog:{schema_version, custom_indices, watchlists}}` |
 | `POST /settings/restore` | body: a backup (older settings schemas are migrated) → `{settings, catalog}` (catalog as in `GET /catalog`) |
-| `GET /catalog` | `{categories:[{name, items:[{name, ticker, source, custom, id}]}], watchlists:[{id, name, tickers}]}` |
+| `GET /catalog` | `{categories:[{name, items:[{name, ticker, source, used_source, kind:"price"\|"tri", custom, id, history:{first, last, rows, days, short, complete}\|null}]}], watchlists:[{id, name, tickers}], source_overrides:{<ticker>:<source>}, short_history_days}`. `source` = configured; `used_source` = what is actually read (overrides, Demo mode). `history` is null until the series is first downloaded; `short` only when the source is known to have no more |
+| `PUT\|DELETE /catalog/overrides/{ticker}` | body `{source}` → all overrides: serve this ticker from another source (e.g. `csv` after an import; 400 if nothing was imported). DELETE → 204 |
 | `POST\|PUT\|DELETE /catalog/indices/{id}` | body `{name, ticker, category?, source?}` → `{id, name, ticker, category, source}`; DELETE → 204 |
 | `POST\|PUT\|DELETE /catalog/watchlists/{id}` | body `{name, tickers}` → `{id, name, tickers}`; DELETE → 204 |
 | `PUT /catalog/watchlists/order` | body `{ids:[…]}` → `[watchlist, …]` |
@@ -43,6 +44,9 @@ Shapes below use `…` for repeated items.
 `open,high,low,close,adj_close,volume,return`): any of `open high low close adj_close volume
 return log_return drawdown rebased sma_<n> ema_<n> rsi_<n> vol_<n>` (n = 2…1000 bars of
 `freq`). Windowed columns are warmed up with earlier history, so the first row is filled.
+TRI series (`<ticker>-TRI`) default to `close,ntr,return` (`ntr` = net total return index).
+`meta` adds `kind` ("price" or "tri"), `ohlc` (false for close-only series), `source_label`.
+Each ticker is read from its own source unless `source=` is given (see `GET /catalog`).
 ```json
 {"ticker":"^NSEI","name":"NIFTY 50","source":"yahoo","freq":"Daily",
  "columns":["date","close","return","rsi_14"],
@@ -52,7 +56,9 @@ return log_return drawdown rebased sma_<n> ema_<n> rsi_<n> vol_<n>` (n = 2…100
 ```
 
 **`POST /load`** — body `{tickers, start?, end?, period?, refresh?, source?}` → 202 + job.
-**`POST /cache/update`** — body `{source?, tickers?}` (default: everything cached) → 202 + job.
+**`POST /cache/update`** — body `{source?, tickers?}` → 202 + job. Default: every cached series
+the app uses, each from its own source; files left over from a ticker's old source and CSV
+imports are skipped.
 **`GET /jobs/{id}`** — job:
 ```json
 {"id":"3f2a…","kind":"load","status":"queued|running|done|failed","created":"2026-10-08T14:02:11",
@@ -71,7 +77,7 @@ required; Open/High/Low/Adj Close/Volume optional; commas in numbers OK) → 201
 
 | Route | Response |
 |---|---|
-| `GET /cache` | `{cache_dir, total_rows, total_size_kb, entries:[{source, ticker, rows, first_date, last_date, last_updated, size_kb}]}` |
+| `GET /cache` | `{cache_dir, total_rows, total_size_kb, entries:[{source, ticker, rows, first_date, last_date, last_updated, size_kb, in_use, used_source}]}` (`in_use` false = left over; the ticker now comes from `used_source`) |
 | `DELETE /cache/{source}/{ticker}` | `{deleted_files}` (404 if not cached) |
 | `DELETE /cache?confirm=true[&source=]` | `{deleted_files}` (400 without `confirm=true`) |
 | `GET /tickers/check?source` | `{source, checked, ok, results:[{ticker, name, ok, message}]}` |
@@ -81,7 +87,7 @@ required; Open/High/Low/Adj Close/Volume optional; commas in numbers OK) → 201
 | Route | Response |
 |---|---|
 | `GET /analytics/summary?tickers&rf` | `{params:{rf, trading_days}, metrics:[{id, label, kind:"pct\|ratio\|level\|date\|years"}], kpi_cards:[id], series:{<t>:{name, start, end, metrics:{cagr, ann_vol, sharpe, …}}}}` — metric ids in `api/metrics.py` |
-| `GET /analytics/trailing?tickers&end&periods` | `{periods:["1M",…], end, series:{<t>:{"1M":0.012, "3Y":0.114 (CAGR), …}}}` |
+| `GET /analytics/trailing?tickers&end&periods` | `{periods:["1M",…], end, common_end, series:{<t>:{"1M":0.012, "3Y":0.114 (CAGR), …}}}` — with several tickers all are measured to `end` = the latest date every series has (`common_end` true) |
 | `GET /analytics/drawdowns?ticker&top` | `{ticker, start, end, current, underwater:{dates, values}, episodes:[{peak, trough, recovered\|null, ongoing, depth, peak_to_trough_days, trough_to_recovery_days, total_days}]}` |
 | `GET /analytics/monthly-grid?ticker` | `{ticker, start, end, months:["Jan",…], years:[2016,…], values:[[12 × return\|null], …], year_total:[…]}` |
 | `GET /analytics/yearly?ticker` | `{ticker, years:[{year, return, start, end}]}` — `start`/`end` reveal partial years |
@@ -92,7 +98,7 @@ required; Open/High/Low/Adj Close/Volume optional; commas in numbers OK) → 201
 
 | Route | Response |
 |---|---|
-| `GET /analytics/compare?tickers&benchmark&freq` | `{tickers, names:{<t>:name}, benchmark, frequency, rebased:{start, note, dates, series:{<t>:[…]}}, metric_ids:[…], metrics:{<t>:{<id>:v}}, beta:{<t>:v}, correlation:{tickers, matrix}, scatter:[{ticker, cagr, ann_vol}]}` |
+| `GET /analytics/compare?tickers&benchmark&freq` | `{tickers, names:{<t>:name}, benchmark, frequency, end (latest date all series share; every series is cut there), rebased:{start, note, dates, series:{<t>:[…]}}, metric_ids:[…], metrics:{<t>:{<id>:v}}, beta:{<t>:v}, correlation:{tickers, matrix}, scatter:[{ticker, cagr, ann_vol}]}` |
 | `GET /analytics/relative-strength?a&b&sma` | `{a, b, ratio:{dates, values}, sma_window, sma:{dates, values}\|null}` |
 | `GET /analytics/rolling-correlation?a&b&window&freq` | `{a, b, window, frequency, series:{dates, values}}` |
 | `GET /analytics/rolling?tickers&years&target` | `{years:[…], target, series:{<t>:{name, windows:{"5":{observations, min, q1, median, mean, q3, max, latest, pct_negative, pct_above_target, insight, series:{dates, values}}\|null}}}}` — `period` defaults to `Max` |

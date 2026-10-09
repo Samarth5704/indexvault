@@ -3,13 +3,18 @@
 
 import { h } from "../dom.js";
 import { SERIES_COLOURS, seriesColour } from "../store.js";
+import { historyTag, isTri, kindTag } from "./history-tag.js";
 import { seriesName } from "./series-picker.js";
 
-/** seriesLegend(tickers, {value: (ticker) => string, label: "Series"}) */
+/** seriesLegend(tickers, {value: (ticker) => string, label: "Series"}).
+ *  Price/TRI tags appear when both kinds are shown; "< 1 yr" whenever it applies. */
 export function seriesLegend(tickers, { value = null, label = "Legend" } = {}) {
+  const mixed = tickers.some(isTri) && !tickers.every(isTri);
   return h("ul.legend", { "aria-label": label }, tickers.map((t) => h("li",
     h("span.chip-dot", { style: { background: seriesColour(t) }, "aria-hidden": "true" }),
     seriesName(t),
+    mixed && kindTag(t),
+    historyTag(t),
     value && h("span.mono.muted", value(t)))));
 }
 

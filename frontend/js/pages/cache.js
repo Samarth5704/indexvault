@@ -4,6 +4,7 @@
 
 import { api, enc } from "../api.js";
 import { confirmDialog } from "../components/confirm.js";
+import { csvImportCard } from "../components/csv-import.js";
 import { emptyState, errorState, skeleton, statusPill } from "../components/feedback.js";
 import { seriesName } from "../components/series-picker.js";
 import { runJobWithToast, toast, toastError } from "../components/toast.js";
@@ -15,13 +16,15 @@ const n0 = (v) => format.number(v, { decimals: 0 });
 const size = (kb) => (kb >= 1024 ? `${format.number(kb / 1024, { decimals: 1 })} MB` : `${format.number(kb, { decimals: 0 })} KB`);
 
 export default {
-  mount(el) {
+  mount(el, { route }) {
     const locationCard = h("section.card.cache-location");
     const tableCard = h("section.card");
     const checkCard = h("section.card");
+    const importer = csvImportCard({ preselect: route.params.import || "", onDone: () => render() });
     el.append(h("header.page-head", h("div", h("h1", "Cache"),
       h("p.page-sub", "Everything IndexVault has downloaded, kept as CSV files on this computer."))),
-    h("div.page-body", locationCard, tableCard, checkCard));
+    h("div.page-body", locationCard, tableCard, importer.el, checkCard));
+    if ("import" in route.params) requestAnimationFrame(() => importer.focus()); // from "Import a CSV instead"
 
     let token = 0;
     const sources = () => store.get().health?.sources || [];
@@ -61,8 +64,9 @@ export default {
             (bySource.length ? ` · ${bySource.map(([s, c]) => `${c} ${sourceLabel(s)}`).join(", ")}` : ""))),
         h("div.head-actions",
           h("button.btn.primary.sm", { type: "button", disabled: !inv.entries.length,
-            onclick: () => job(() => api.post("/cache/update", { source: settings().data.source }), "Updating cache", "Cache updated") },
-          icon("refresh", { size: "sm" }), `Update all (${sourceLabel(settings().data.source)})`),
+            title: "Each series from the source it uses now; left-over files and CSV imports are skipped",
+            onclick: () => job(() => api.post("/cache/update", {}), "Updating cache", "Cache updated") },
+          icon("refresh", { size: "sm" }), "Update all"),
           h("button.btn.ghost.sm", { type: "button", disabled: !inv.entries.length, onclick: deleteAll }, icon("trash", { size: "sm" }), "Delete all…")));
     }
 
@@ -75,9 +79,14 @@ export default {
       const stale = settings().data.stale_after_hours;
       const rows = inv.entries.map((e) => {
         const ageH = (Date.now() - new Date(e.last_updated).getTime()) / 3.6e6;
-        return h("tr",
+        const override = store.get().catalog.source_overrides?.[e.ticker] === e.source;
+        return h("tr", { "data-unused": e.in_use ? null : "true" },
           h("td", h("span.source-tag", sourceLabel(e.source))),
-          h("td", seriesName(e.ticker), h("span.mono.muted", ` ${e.ticker}`)),
+          h("td", seriesName(e.ticker), h("span.mono.muted", ` ${e.ticker}`),
+            !e.in_use && h("span.cache-note", { title: "Not read by the app; the ticker now comes from another source" },
+              ` · not used (now from ${sourceLabel(e.used_source)})`),
+            override && h("span.cache-note", " · replaces its usual source ",
+              h("button.link-btn", { type: "button", onclick: () => stopOverride(e.ticker) }, "stop"))),
           h("td.num", n0(e.rows)), h("td", format.date(e.first_date)), h("td", format.date(e.last_date)),
           h("td", { title: e.last_updated }, format.ago(e.last_updated), ageH > stale ? h("span.muted", " · stale") : ""),
           h("td.num", size(e.size_kb)),
@@ -112,6 +121,16 @@ export default {
         api.invalidate();
         toast({ tone: "success", title: `Deleted ${e.ticker}` });
       } catch (err) { toastError(err, "Couldn't delete"); }
+      render();
+    }
+
+    async function stopOverride(ticker) {
+      try {
+        await api.del(`/catalog/overrides/${enc(ticker)}`);
+        api.invalidate();
+        store.set({ catalog: await api.get("/catalog", null, { fresh: true }) });
+        toast({ tone: "success", title: `${seriesName(ticker)} uses its usual source again` });
+      } catch (err) { toastError(err, "Couldn't change the source"); }
       render();
     }
 

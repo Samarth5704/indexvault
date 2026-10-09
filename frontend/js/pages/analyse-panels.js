@@ -70,6 +70,8 @@ export function pricePanel(env, { state, onState }) {
   const cols = ["open", "high", "low", "close", ...overlays];
   const ovColour = (i) => `var(--series-${((i + 2) % 8) + 1})`;
   let rows = [], moves = [], tc = null;
+  let closeOnly = false; // TRI / close-only CSV: open, high and low just repeat the close
+  const chartType = () => (closeOnly && state.type === "candle" ? "line" : state.type);
 
   const card = chartCard({
     title: "Price", subtitle: `${env.freq} · drag to pan, scroll to zoom`, filename: `${env.ticker}-price`,
@@ -85,9 +87,13 @@ export function pricePanel(env, { state, onState }) {
   const plot = h("div.plot");
 
   function renderControls() {
-    typeGroup.replaceChildren(...["line", "candle", "area"].map((tp) => h("button.seg", {
-      type: "button", role: "radio", "aria-checked": String(state.type === tp),
-      onclick: () => update({ type: tp }) }, tp[0].toUpperCase() + tp.slice(1))));
+    typeGroup.replaceChildren(...["line", "candle", "area"].map((tp) => {
+      const off = tp === "candle" && closeOnly;
+      return h("button.seg", {
+        type: "button", role: "radio", "aria-checked": String(chartType() === tp), disabled: off,
+        title: off ? "Candles need open/high/low/close; this series only has closing values" : null,
+        onclick: () => update({ type: tp }) }, tp[0].toUpperCase() + tp.slice(1));
+    }));
     logBtn.setAttribute("aria-pressed", String(state.log));
     ovGroup.replaceChildren(...overlays.map((id, i) => h("button.chip.chip-toggle", {
       type: "button", "aria-pressed": String(state.overlays.includes(id)),
@@ -105,9 +111,9 @@ export function pricePanel(env, { state, onState }) {
 
   function draw() {
     const idx = Object.fromEntries(["date", ...cols].map((c, i) => [c, i]));
-    const main = state.type === "candle"
+    const main = chartType() === "candle"
       ? { id: "main", type: "candle", data: rows.map((r) => ({ time: r[0], open: r[idx.open], high: r[idx.high], low: r[idx.low], close: r[idx.close] })) }
-      : { id: "main", type: state.type, colour: seriesColour(env.ticker), data: rows.map((r) => ({ time: r[0], value: r[idx.close] })) };
+      : { id: "main", type: chartType(), colour: seriesColour(env.ticker), data: rows.map((r) => ({ time: r[0], value: r[idx.close] })) };
     main.markers = moves;
     const lines = overlays.map((id, i) => state.overlays.includes(id) && {
       id, type: "line", colour: ovColour(i), width: 1.5, lastValue: false,
@@ -122,7 +128,8 @@ export function pricePanel(env, { state, onState }) {
     const idx = Object.fromEntries(["date", ...cols].map((c, i) => [c, i]));
     const row = info ? rows.find((r) => r[0] === info.time) : rows.at(-1);
     if (!row) return;
-    const ohlc = ["open", "high", "low", "close"].map((c) => h("span", h("span.muted", `${c[0].toUpperCase()} `), format.number(row[idx[c]])));
+    const ohlc = (closeOnly ? ["close"] : ["open", "high", "low", "close"])
+      .map((c) => h("span", h("span.muted", `${c[0].toUpperCase()} `), format.number(row[idx[c]])));
     const ov = overlays.filter((id) => state.overlays.includes(id) && row[idx[id]] != null)
       .map((id) => h("span", h("span.muted", `${columnLabel(id)} `), format.number(row[idx[id]])));
     readout.replaceChildren(h("span", format.date(row[0])), ...ohlc, ...ov);
@@ -139,6 +146,8 @@ export function pricePanel(env, { state, onState }) {
         api.get("/analytics/big-moves", { ticker: env.ticker, ...env.range }),
       ]);
       rows = s.rows;
+      closeOnly = s.meta.ohlc === false;
+      renderControls();
       moves = bigMoveMarkers(bm.moves, rows.map((r) => r[0]));
       card.content(h("div.price-wrap", h("div.chart-controls", typeGroup, logBtn, ovGroup), readout, plot));
       tc = await createTimeChart(plot, { height: 380 });

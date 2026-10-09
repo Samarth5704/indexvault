@@ -19,7 +19,7 @@ from ..context import AppContext, get_ctx
 from ..errors import bad_request
 from ..jsonutil import JsonableRoute, convert_record, convert_rows, iso_dates, series_payload
 from ..metrics import METRICS, from_core
-from .series import names, volume_available
+from .series import has_ohlc, names, volume_available
 
 router = APIRouter(prefix="/analytics", route_class=JsonableRoute)
 
@@ -28,7 +28,7 @@ Period = Query(None, description="1M…20Y, YTD or Max; ignored if start is give
 
 
 def _inputs(ctx: AppContext, tickers: str, period, start, end, source):
-    source = ctx.source(source)
+    source = ctx.explicit_source(source)  # None = each ticker's own source
     tickers_ = ctx.tickers(tickers)
     start_ts, end_ts = ctx.date_range(period, start, end)
     return source, tickers_, start_ts, end_ts
@@ -75,16 +75,18 @@ def trailing(tickers: str = Tickers, end: date | None = None, source: str | None
         offsets = [an.period_offset(p) for p in labels]
     except ValueError as e:
         raise bad_request(str(e)) from None
-    source = ctx.source(source)
+    source = ctx.explicit_source(source)
     tickers_ = ctx.tickers(tickers)
     end_ts = pd.Timestamp(end) if end else pd.Timestamp.today().normalize()
     earliest = min((end_ts - o for o in offsets if o is not None), default=end_ts)
     start_ts = min(earliest, pd.Timestamp(end_ts.year - 1, 12, 31)) - pd.DateOffset(days=10)
-    out = {}
-    for t in tickers_:
-        close = ctx.frame(t, source, start_ts, end_ts)["Close"]
-        out[t] = {k: (None if pd.isna(v) else v / 100) for k, v in an.trailing_returns(close, labels).items()}
-    return {"periods": labels, "end": end_ts, "series": out}
+    closes = {t: ctx.frame(t, source, start_ts, end_ts)["Close"].dropna() for t in tickers_}
+    # Several series: measure all of them to the latest date every one of them has,
+    # so a series that is a day behind isn't compared over a different window.
+    common = min(c.index[-1] for c in closes.values())
+    out = {t: {k: (None if pd.isna(v) else v / 100) for k, v in an.trailing_returns(c.loc[:common], labels).items()}
+           for t, c in closes.items()}
+    return {"periods": labels, "end": common, "common_end": len(tickers_) > 1, "series": out}
 
 
 # --------------------------------------------------------------------------- #
@@ -195,6 +197,10 @@ def _quality(df: pd.DataFrame, ticker: str, big_move: float, gap_days: int) -> d
     zero_vol = q.pop("Zero-volume days")
     rec = convert_record(q, renames={"Coverage of weekdays %": "coverage"})
     rec.update(gaps=gaps, big_moves=moves, zero_volume_days=zero_vol if isinstance(zero_vol, int) else None)
+    # Close-only series (TRI, close-only CSVs) have no real OHLC bars to check.
+    rec["close_only"] = has_ohlc(df) is False
+    if rec["close_only"]:
+        rec["ohlc_inconsistencies"] = None
     issues, status = [], "good"
     for field, label in (("duplicate_dates", "duplicate dates"), ("missing_values", "missing values"),
                          ("ohlc_inconsistencies", "OHLC inconsistencies")):

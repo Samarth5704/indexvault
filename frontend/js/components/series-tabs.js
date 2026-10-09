@@ -5,6 +5,7 @@
 import { h } from "../dom.js";
 import { setPageParams } from "../router.js";
 import { selection, seriesColour, store } from "../store.js";
+import { historyTag } from "./history-tag.js";
 import { seriesName } from "./series-picker.js";
 
 /** The active ticker: page param `t` if still selected, else the first selected series. */
@@ -22,7 +23,7 @@ export function seriesTabs() {
     el.replaceChildren(...selection().series.map((t) => h("button.series-tab", {
       type: "button", role: "tab", "aria-selected": String(t === cur), tabindex: t === cur ? "0" : "-1",
       onclick: () => setPageParams({ ...store.get().route.params, t }),
-    }, h("span.chip-dot", { style: { background: seriesColour(t) }, "aria-hidden": "true" }), seriesName(t))));
+    }, h("span.chip-dot", { style: { background: seriesColour(t) }, "aria-hidden": "true" }), seriesName(t), historyTag(t))));
   }
 
   el.addEventListener("keydown", (e) => {

@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from indexvault import analytics as an
 from indexvault import data
-from indexvault.indices import display_name
+from indexvault.indices import display_name, series_kind
 
 from ..context import AppContext, get_ctx
 from ..errors import bad_request, not_found
@@ -98,13 +98,14 @@ def _resolve(ctx: AppContext, body: ExportRequest) -> dict:
     }
 
 
-def _tables(ctx: AppContext, r: dict, source: str, start_ts, end_ts) -> dict[str, tuple[str, pd.DataFrame]]:
-    """ticker -> (display name, table with id columns)."""
+def _tables(ctx: AppContext, r: dict, source: str | None, start_ts, end_ts) -> dict[str, tuple[str, pd.DataFrame]]:
+    """ticker -> (display name, table with id columns). TRI tables always carry NTR."""
     out = {}
     for t in r["tickers"]:
-        daily = ctx.frame(t, source, start_ts, end_ts, warmup=warmup_for(r["columns"], r["freq"]))
+        cols = r["columns"] + (["ntr"] if series_kind(t) == "tri" and "ntr" not in r["columns"] else [])
+        daily = ctx.frame(t, source, start_ts, end_ts, warmup=warmup_for(cols, r["freq"]))
         out[t] = (display_name(t, names(ctx)),
-                  build_columns(daily, r["columns"], r["freq"], start_ts, ctx.settings.analytics.trading_days))
+                  build_columns(daily, cols, r["freq"], start_ts, ctx.settings.analytics.trading_days))
     return out
 
 
@@ -130,15 +131,15 @@ def _summary_sheet(ctx: AppContext, tables, source, start_ts, end_ts) -> pd.Data
     return pd.DataFrame(rows).T.rename_axis("Series")
 
 
-def _about_sheet(ctx: AppContext, r: dict, source: str, tables, start_ts, end_ts) -> pd.DataFrame:
-    rows = [("Generated", datetime.now().isoformat(timespec="seconds")),
-            ("Source", data.SOURCE_INFO[source].label), ("Frequency", r["freq"]),
+def _about_sheet(ctx: AppContext, r: dict, source: str | None, tables, start_ts, end_ts) -> pd.DataFrame:
+    rows = [("Generated", datetime.now().isoformat(timespec="seconds")), ("Frequency", r["freq"]),
             ("From", str(start_ts.date()) if start_ts is not None else "start of data"),
             ("To", str(end_ts.date())), ("Percent columns", "decimals (0.0123 = 1.23%)")]
     for t, (name, df) in tables.items():
-        _, info = data.load_cached(t, source)
-        rows.append((f"{name} ({t})", f"cache updated {info.get('last_update', 'n/a')}"))
-        rows += [("Caveat", c) for c in caveats(t, source, df)]
+        src = ctx.source_for(t, source)
+        _, info = data.load_cached(t, src)
+        rows.append((f"{name} ({t})", f"{data.SOURCE_INFO[src].label} · cache updated {info.get('last_update', 'n/a')}"))
+        rows += [("Caveat", c) for c in caveats(t, src, df)]
     return pd.DataFrame(rows, columns=["Item", "Value"]).set_index("Item")
 
 
@@ -181,7 +182,7 @@ def export(body: ExportRequest, ctx: AppContext = Depends(get_ctx)):
     r = _resolve(ctx, body)
     if not r["tickers"]:
         raise bad_request("No tickers to export.")
-    source = ctx.source(body.source)
+    source = ctx.explicit_source(body.source)  # None = each ticker's own source
     start_ts, end_ts = ctx.date_range(body.period, body.start, body.end)
     tables = _tables(ctx, r, source, start_ts, end_ts)
     fmt = r["format"]
@@ -193,8 +194,9 @@ def export(body: ExportRequest, ctx: AppContext = Depends(get_ctx)):
         content = data.to_csv_zip_bytes({name: _labelled(_round(df, r["decimals"])) for name, df in tables.values()},
                                         float_format=None, date_format=DATE_FORMATS[r["date_format"]][0])
     else:
-        payload = {"source": source, "freq": r["freq"],
-                   "series": {t: {"name": name, **frame_payload(df), "caveats": caveats(t, source, df)}
+        payload = {"freq": r["freq"],
+                   "series": {t: {"name": name, "source": ctx.source_for(t, source), **frame_payload(df),
+                                  "caveats": caveats(t, ctx.source_for(t, source), df)}
                               for t, (name, df) in tables.items()}}
         content = json.dumps(jsonable(payload), ensure_ascii=False, indent=1).encode("utf-8")
     name = _filename(r["tickers"], r["freq"], fmt)

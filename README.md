@@ -191,14 +191,24 @@ it automatically from `GET /api/settings/schema`; add a friendlier label in
 
 ## Data caveats
 
-- **Price indices, not total return.** Yahoo's index levels exclude dividends. Total
-  return (TRI) is typically about 1–1.5% a year higher, so CAGRs here understate what an
-  index fund earned.
-- **Yahoo Finance is unofficial.** Tickers get renamed or retired, and history can go
-  missing. At the time of writing several NSE sectoral tickers (Auto, FMCG, Metal, Energy,
-  Realty, Media, Infra, PSU Bank, Financial Services) and the Midcap/Smallcap 100 return
-  only the latest day. Widgets say so instead of showing empty rows; the **Cache → Ticker
-  health check** lists what's broken. Add a working symbol under Settings → Catalogue.
+- **Price index vs total return (TRI).** Index levels exclude dividends; a total return
+  index reinvests them and typically grows about 1–1.5% a year faster. TRI series are
+  separate entries (e.g. "NIFTY 50 TRI", in the *Total return (TRI)* category, with net
+  total return in an extra NTR column) and every picker, legend and export labels which is
+  which. Don't compare a price index with a TRI as if they were the same thing.
+- **Where the data comes from.** Most series come from Yahoo Finance (unofficial; tickers
+  get renamed or lose history). Yahoo no longer serves history for several NSE indices
+  (Auto, FMCG, Metal, Energy, Realty, Media, Infra, PSU Bank, Financial Services,
+  Midcap 100, Smallcap 100), so those, and all TRI series, come from **niftyindices.com**,
+  NSE Indices' own site. **The NSE source is for personal research use only:** the data
+  belongs to NSE Indices Ltd and the app uses the endpoints of the site's Historical Data
+  page, not a published API. It downloads politely (one request at a time, a pause between
+  requests, a year per request) and only what you look at. If the site changes or is
+  down, the app says so and offers **Cache → Import a CSV**: download the index from
+  niftyindices.com yourself and import the file.
+- **Short histories are marked.** A series with under a year of data (setting: Data →
+  "Mark as short history below") gets a "< 1 yr" tag in pickers, chips and legends, and a
+  note on the page.
 - **Volume.** Index volume used to be zero on Yahoo; some indices (e.g. `^NSEI`) now
   carry it. The app decides per series from the data and labels series without volume.
 - **Not investment advice.** IndexVault is a research and learning tool. Past returns,

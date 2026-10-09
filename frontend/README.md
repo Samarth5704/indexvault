@@ -29,6 +29,8 @@ Design rules: `docs/DESIGN.md`. API shapes: `docs/API.md`.
 | `js/charts/` | `vendor.js` (lazy-loads the libraries), `theme.js` (tokens → chart colours), `timeseries.js` (Lightweight Charts: line/area/candle/underwater, markers, log, PNG), `echarts.js` (host + heatmap/bars/histogram builders), `sync.js` (crosshair sync), `lttb.js` (LTTB downsampling for long series, memoised; extremes and marker dates kept) |
 | `js/components/legend.js` | Series legend in slot colours + the "too many series" note |
 | `js/pages/` | One module per page: `export default { mount(el, ctx) -> cleanup? }` |
+| `js/components/history-tag.js` | Series labels: Price/TRI tag, "< 1 yr" short-history tag, page notes for short history and mixed price/TRI |
+| `js/components/csv-import.js` | Cache page "Import a CSV" card (niftyindices.com downloads or any Date+Close CSV), optional per-ticker override |
 | `js/components/form-field.js` | One settings field rendered from a JSON-schema property (`x-unit`, `x-options`, `x-ordered` hints): segmented, select, switch, number, percent, range, colour, text, list |
 | `js/pages/dashboard/` | Dashboard widgets: `widgets.js` (registry, card chrome, add/configure drawer, default layout), `widgets-market.js` (snapshot, mini chart, heatmap), `widgets-risk.js` (VIX gauge, drawdown monitor, rolling snapshot, notes), `common.js` |
 | `js/pages/settings/` | Settings sections: `meta.js` (labels/widgets over the schema), `schema-section.js` (generic fields, formats preview, presets), `appearance.js`, `theme-editor.js`, `palette-editor.js`, `catalogue.js`, `shortcuts.js`, `backup.js` |

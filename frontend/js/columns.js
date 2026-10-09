@@ -6,12 +6,15 @@ import { format } from "./settings.js";
 
 export const BASE = {
   open: "Open", high: "High", low: "Low", close: "Close", adj_close: "Adj Close", volume: "Volume",
+  ntr: "NTR (net total return)",
 };
 export const SIMPLE = {
   return: "Return", log_return: "Log return", drawdown: "Drawdown", rebased: "Rebased (100)",
 };
 export const WINDOWED = { sma: "SMA", ema: "EMA", rsi: "RSI", vol: "Volatility" };
 export const DEFAULT_COLUMNS = ["open", "high", "low", "close", "adj_close", "volume", "return"];
+/** Total return series are close-only: gross TRI close, net total return, return. */
+export const TRI_COLUMNS = ["close", "ntr", "return"];
 
 const WINDOWED_RE = /^(sma|ema|rsi|vol)_(\d{1,4})$/;
 

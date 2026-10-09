@@ -42,7 +42,7 @@ def counting_source():
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     """TestClient on a fresh app: temp config + cache, demo source by default,
-    and Yahoo wired to fail so no test can reach the network."""
+    and Yahoo and NSE wired to fail so no test can reach the network."""
     import json
 
     from fastapi.testclient import TestClient
@@ -55,9 +55,10 @@ def client(tmp_path, monkeypatch):
         "schema_version": 1, "data": {"source": "demo", "cache_dir": str(tmp_path / "cache")}}))
 
     def no_network(*_args, **_kwargs):
-        raise AssertionError("tests must not call Yahoo")
+        raise AssertionError("tests must not call Yahoo or niftyindices.com")
 
     monkeypatch.setitem(data.SOURCES, "yahoo", no_network)
+    monkeypatch.setitem(data.SOURCES, "nse", no_network)
     old_root = data.get_cache_root()
     with TestClient(create_app(config)) as c:
         yield c

@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from indexvault import analytics as an
 from indexvault import data
-from indexvault.indices import display_name, has_volume
+from indexvault.indices import NSE_NAMES, display_name, has_volume, series_kind
 
 from ..context import AppContext, get_ctx
 from ..errors import ApiError, bad_request, not_found
@@ -22,8 +22,9 @@ from ..settings import Frequency
 router = APIRouter(route_class=JsonableRoute)
 
 BASE_COLUMNS = {"open": "Open", "high": "High", "low": "Low", "close": "Close",
-                "adj_close": "Adj Close", "volume": "Volume"}
+                "adj_close": "Adj Close", "volume": "Volume", "ntr": "NTR"}
 DEFAULT_COLUMNS = ["open", "high", "low", "close", "adj_close", "volume", "return"]
+TRI_DEFAULT_COLUMNS = ["close", "ntr", "return"]  # TRI: gross close + net total return
 _WINDOWED = re.compile(r"^(sma|ema|rsi|vol)_(\d{1,4})$")
 _SIMPLE = {"return", "log_return", "drawdown", "rebased"}
 BAR_DAYS = {"Daily": 1, "Weekly": 7, "Monthly": 31, "Quarterly": 92, "Yearly": 366}
@@ -53,12 +54,30 @@ def volume_available(ticker: str, df: pd.DataFrame | None = None) -> bool:
     return bool((df[col].fillna(0) > 0).mean() > 0.5)
 
 
+def has_ohlc(df: pd.DataFrame | None) -> bool | None:
+    """False for close-only series (TRI, CSVs with just a close), where open, high
+    and low merely repeat the close on (almost) every row; None when the frame
+    doesn't carry all four columns. Accepts raw (Open…) or table (open…) names."""
+    cols = {str(c).lower(): c for c in (df.columns if df is not None else [])}
+    if df is None or df.empty or not {"open", "high", "low", "close"} <= set(cols):
+        return None
+    o, h, lo, c = (df[cols[k]] for k in ("open", "high", "low", "close"))
+    return bool(((o == c) & (h == c) & (lo == c)).mean() < 0.95)
+
+
 def caveats(ticker: str, source: str, df: pd.DataFrame | None = None) -> list[str]:
     out = []
     if source == "demo":
         out.append("Synthetic demo data — not real market prices.")
-    if ticker.startswith("^") and source == "yahoo":
+    is_index = ticker.startswith("^") or ticker in NSE_NAMES
+    if series_kind(ticker) == "tri":
+        out.append("Total return index (TRI): dividends reinvested, gross of tax. The NTR column is net of tax.")
+    elif is_index and source in ("yahoo", "nse"):
         out.append("Price index: excludes dividends (TRI is ~1–1.5% p.a. higher).")
+    if source == "nse":
+        out.append("Data from niftyindices.com (NSE Indices), for personal research use only.")
+    if has_ohlc(df) is False:
+        out.append("Close only: open, high and low just repeat the close.")
     if not volume_available(ticker, df):
         out.append("Volume is not available for this series.")
     return out
@@ -94,7 +113,7 @@ def build_columns(daily: pd.DataFrame, cols: list[str], freq: str, start: pd.Tim
     out = pd.DataFrame(index=bars.index)
     for c in cols:
         if c in BASE_COLUMNS:
-            out[c] = bars[BASE_COLUMNS[c]]
+            out[c] = bars[BASE_COLUMNS[c]] if BASE_COLUMNS[c] in bars else np.nan
         elif c == "return":
             out[c] = close.pct_change()
         elif c == "log_return":
@@ -136,9 +155,9 @@ def get_series(
     """OHLCV + derived columns. Returns, log returns, vol and drawdown are decimals;
     rsi is 0–100; rebased starts at 100."""
     s = ctx.settings
-    source = ctx.source(source)
+    source = ctx.source_for(ticker, ctx.explicit_source(source))
     freq = freq or s.data.default_frequency
-    cols = parse_columns(columns)
+    cols = parse_columns(columns) if columns or series_kind(ticker) == "price" else list(TRI_DEFAULT_COLUMNS)
     start_ts, end_ts = ctx.date_range(period, start, end)
     daily = ctx.frame(ticker, source, start_ts, end_ts, warmup=warmup_for(cols, freq))
     table = build_columns(daily, cols, freq, start_ts, s.analytics.trading_days)
@@ -148,6 +167,8 @@ def get_series(
         "ticker": ticker, "name": display_name(ticker, names(ctx)), "source": source, "freq": freq,
         **frame_payload(table),
         "meta": {"rows": len(table), "first": table.index[0], "last": table.index[-1],
+                 "kind": series_kind(ticker), "ohlc": has_ohlc(daily) is not False,
+                 "source_label": data.SOURCE_INFO[source].label,
                  "has_volume": volume_available(ticker, daily), "caveats": caveats(ticker, source, daily)},
     }
 
@@ -162,23 +183,27 @@ class LoadRequest(BaseModel):
     source: str | None = None
 
 
-def submit_fetch_job(ctx: AppContext, kind: str, tickers: list[str], source: str,
+def submit_fetch_job(ctx: AppContext, kind: str, tickers: list[str], source: str | None,
                      start: pd.Timestamp | None, end: pd.Timestamp, refresh: bool) -> dict:
+    """`source` None = each ticker's own source."""
     def work(ticker: str) -> dict:
         try:
             df = ctx.full_frame(ticker, source, start, end, refresh=refresh)
         except ApiError as e:
-            raise RuntimeError(e.detail.get("reason", e.message) if isinstance(e.detail, dict) else e.message) from None
+            d = e.detail if isinstance(e.detail, dict) else {}
+            # a source with a fallback (NSE → CSV import) has the full advice in the message
+            raise RuntimeError(e.message if d.get("fallback") else d.get("reason", e.message)) from None
         return {"rows": len(df), "first": df.index[0], "last": df.index[-1]}
 
-    throttle = 0.0 if data.SOURCE_INFO[source].offline else ctx.settings.data.request_throttle_seconds
+    online = any(not data.SOURCE_INFO[ctx.source_for(t, source)].offline for t in tickers)
+    throttle = ctx.settings.data.request_throttle_seconds if online else 0.0
     return ctx.jobs.submit(kind, tickers, work, throttle)
 
 
 @router.post("/load", status_code=202)
 def load(body: LoadRequest, ctx: AppContext = Depends(get_ctx)):
     """Download/update tickers in the background. Poll GET /jobs/{id} or stream it."""
-    source = ctx.source(body.source)
+    source = ctx.explicit_source(body.source)
     tickers = ctx.tickers(body.tickers)
     start, end = ctx.date_range(body.period, body.start, body.end)
     return submit_fetch_job(ctx, "load", tickers, source, start, end, body.refresh)

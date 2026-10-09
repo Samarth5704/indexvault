@@ -5,6 +5,7 @@
 import { api } from "../api.js";
 import { createSyncGroup } from "../charts/sync.js";
 import { emptyState, errorState, skeleton } from "../components/feedback.js";
+import { shortHistoryNote } from "../components/history-tag.js";
 import { activeTicker, seriesTabs } from "../components/series-tabs.js";
 import { h, icon } from "../dom.js";
 import { setPageParams } from "../router.js";
@@ -76,7 +77,7 @@ export default {
       const yearly = yearlyPanel(env);
       const hist = histogramPanel(env);
       const vol = volPanel(env);
-      body.replaceChildren(top, h("div.grid", price.el, ...dd.els, heat.el, yearly.el, hist.el, vol.el));
+      body.replaceChildren(...[shortHistoryNote([ticker]), top, h("div.grid", price.el, ...dd.els, heat.el, yearly.el, hist.el, vol.el)].filter(Boolean));
 
       const kpis = Promise.all([
         api.get("/analytics/summary", { tickers: ticker, ...env.range }),

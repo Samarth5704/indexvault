@@ -4,6 +4,7 @@
 
 import { h, icon, nextId, onOutsideClick } from "../dom.js";
 import { fuzzyFilter } from "../fuzzy.js";
+import { historyTag, isShort, kindTag, seriesInfo } from "./history-tag.js";
 import { addSeries, MAX_SERIES, recentSeries, removeSeries, selection, SERIES_COLOURS, seriesColour, seriesSlot, setSelection, store } from "../store.js";
 
 /** ticker -> {ticker, name, category, source} from the merged catalogue. */
@@ -42,6 +43,7 @@ export function seriesPicker({ inSheet = false } = {}) {
       return h("li.chip", { title: `${name} (${t})${seriesSlot(t) >= SERIES_COLOURS ? " — beyond 8 series, shown in grey" : ""}` },
         h("span.chip-dot", { style: { background: seriesColour(t) }, "aria-hidden": "true" }),
         h("span.chip-label.truncate", name),
+        isShort(t) && h("span.chip-warn", { title: historyTag(t)?.title, "aria-label": historyTag(t)?.title }, icon("alert-triangle", { size: "sm" })),
         h("button.chip-x", { type: "button", "aria-label": `Remove ${name}`, onclick: () => removeSeries(t) }, icon("x", { size: "sm" })));
     }));
     if (!selection().series.length) chips.append(h("li.chip-empty.muted", "No series selected"));
@@ -105,7 +107,7 @@ export function seriesPicker({ inSheet = false } = {}) {
         onpointermove: () => setActive(i),
       },
       h("span.picker-check", sel.has(o.ticker) ? icon("check", { size: "sm" }) : ""),
-      h("span.picker-name.truncate", o.name),
+      h("span.picker-name", h("span.truncate", o.name), seriesInfo(o.ticker) && kindTag(o.ticker), historyTag(o.ticker)),
       h("span.picker-ticker.mono", o.ticker)));
     });
     if (!options.length) rows.push(h("li.picker-none.muted", { role: "presentation" }, tab === "recent" ? "No recent picks yet." : "No matches."));

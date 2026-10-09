@@ -55,7 +55,7 @@ def _run(body: SipRequest, ctx: AppContext):
     d = ctx.settings.sip
     params = {"amount": body.amount or d.amount, "day": body.day or d.day,
               "step_up": d.step_up if body.step_up is None else body.step_up}
-    source = ctx.source(body.source)
+    source = ctx.explicit_source(body.source)
     start_ts, end_ts = ctx.date_range(body.period, body.start, body.end)
     close = ctx.frame(body.ticker, source, start_ts, end_ts)["Close"]
     ledger, stats = an.sip_backtest(close, amount=params["amount"], day_of_month=params["day"],

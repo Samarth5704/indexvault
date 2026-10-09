@@ -9,6 +9,7 @@ import { resolveColour } from "../charts/theme.js";
 import { createTimeChart } from "../charts/timeseries.js";
 import { chartCard, staticTable } from "../components/chart-card.js";
 import { emptyState, errorState, guard, skeleton } from "../components/feedback.js";
+import { mixedKindNote, shortHistoryNote } from "../components/history-tag.js";
 import { seriesLegend, tooManySeriesNote } from "../components/legend.js";
 import { seriesName } from "../components/series-picker.js";
 import { h, icon } from "../dom.js";
@@ -120,7 +121,7 @@ export default {
       rsCard.el.classList.add("span-6");
       rcCard.el.classList.add("span-6");
 
-      body.replaceChildren(...[tooManySeriesNote(st.series.length), h("div.grid", growth.el, metricsCard, corr.el, scatter.el, rsCard.el, rcCard.el)].filter(Boolean));
+      body.replaceChildren(...[tooManySeriesNote(st.series.length), shortHistoryNote(st.series), mixedKindNote(st.series), h("div.grid", growth.el, metricsCard, corr.el, scatter.el, rsCard.el, rcCard.el)].filter(Boolean));
       metricsBody.replaceChildren(skeleton({ lines: 3 }));
 
       const main = guard(growth, async () => {
@@ -133,7 +134,8 @@ export default {
         const legend = seriesLegend(st.series, { value: (t) => format.number(cmp.rebased.series[t].at(-1)), label: "Final value of 100" });
         growth.content(h("div", legend, plot));
         growth.el.querySelector(".card-sub").replaceChildren(
-          `Rebased to 100 on ${format.date(cmp.rebased.start)}, the first date every series has data `,
+          `Rebased to 100 on ${format.date(cmp.rebased.start)}, the first date every series has data, ` +
+          `up to ${format.date(cmp.end)}, the last date they all share `,
           h("span.info-tip", { title: cmp.rebased.note, "aria-label": cmp.rebased.note, tabindex: "0", role: "note" }, icon("info", { size: "sm" })));
         growthTc = await createTimeChart(plot, { height: 340 });
         track(() => growthTc.destroy());

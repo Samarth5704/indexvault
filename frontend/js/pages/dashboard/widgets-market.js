@@ -111,7 +111,7 @@ export const heatmap = {
       isEmpty: (d) => !d,
       empty: { icon: "table", title: "Nothing in this group", message: "Choose another group or add tickers to the watchlist." },
       render: (d) => {
-        env.setSub(`Returns to ${format.date(d.end)}`);
+        env.setSub(d.common_end ? `Returns to ${format.date(d.end)}, the last date all share` : `Returns to ${format.date(d.end)}`);
         const scale = Object.fromEntries(HEAT_PERIODS.map(([p]) => [p, Math.max(1e-9, ...tickers.map((t) => Math.abs(d.series[t]?.[p] ?? 0)))]));
         const hasData = (t) => HEAT_PERIODS.some(([p]) => d.series[t]?.[p] != null);
         const rows = tickers.filter(hasData).sort((a, b) => (d.series[b]?.["1D"] ?? -1) - (d.series[a]?.["1D"] ?? -1));

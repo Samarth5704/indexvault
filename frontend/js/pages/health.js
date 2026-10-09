@@ -84,7 +84,9 @@ export default {
         h("td", statusPill(r.status)),
         num(r.rows), h("td.num", format.pct(r.coverage, { decimals: 1 })),
         num(r.gaps, true), h("td.num", `${n0(r.largest_gap_days)} d`), num(r.missing_values, true), num(r.duplicate_dates, true),
-        h("td.num", `${n0(r.longest_unchanged_close_run)} d`), num(r.big_moves, true), num(r.ohlc_inconsistencies, true),
+        h("td.num", `${n0(r.longest_unchanged_close_run)} d`), num(r.big_moves, true),
+        r.close_only ? h("td.num.muted", { title: "TRI or close-only data: there are no real open/high/low bars to check" }, "n/a (close only)")
+          : num(r.ohlc_inconsistencies, true),
         h("td", toggle)), detail];
     }
 

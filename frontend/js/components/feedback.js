@@ -2,6 +2,7 @@
 // Every async view uses these so no panel is ever blank (CLAUDE.md rule 5).
 
 import { h, icon } from "../dom.js";
+import { hrefFor } from "../router.js";
 
 /** Shimmering placeholder. variant: "lines" (default) | "block" | "kpi" | "chart". */
 export function skeleton({ variant = "lines", lines = 3, label = "Loading" } = {}) {
@@ -24,13 +25,18 @@ export function emptyState({ icon: name = "inbox", title, message, action } = {}
     action && h("button.btn.secondary.sm", { type: "button", onclick: action.onClick }, action.label));
 }
 
-/** Error panel with retry. */
+/** Error panel with retry. A source that has a fallback (NSE → CSV import) also
+ *  gets a button straight to the Cache page's import card for that ticker. */
 export function errorState(error, { onRetry } = {}) {
+  const fallback = error?.detail?.fallback === "csv_import";
   return h("div.empty-state.error-state", { role: "alert" },
     h("div.empty-art", icon("alert-octagon")),
-    h("p.empty-title", error?.code === "network_error" ? "Can't reach the server" : "Couldn't load this"),
+    h("p.empty-title", error?.code === "network_error" ? "Can't reach the server" : fallback ? "The NSE source didn't answer" : "Couldn't load this"),
     h("p.empty-msg", error?.message || String(error)),
-    onRetry && h("button.btn.secondary.sm", { type: "button", onclick: onRetry }, icon("refresh", { size: "sm" }), "Try again"));
+    h("div.empty-actions",
+      onRetry && h("button.btn.secondary.sm", { type: "button", onclick: onRetry }, icon("refresh", { size: "sm" }), "Try again"),
+      fallback && h("a.btn.primary.sm", { href: hrefFor("cache", { import: error.detail.ticker || "" }) },
+        icon("download", { size: "sm" }), "Import a CSV instead")));
 }
 
 const STATUS = {

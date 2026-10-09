@@ -43,6 +43,10 @@ def compare(tickers: str = Tickers, benchmark: str | None = Query(None, descript
     source, tickers_, start_ts, end_ts = _inputs(ctx, tickers, period, start, end, source)
     benchmark = benchmark or tickers_[0]
     closes = ctx.closes(list(dict.fromkeys([*tickers_, benchmark])), source, start_ts, end_ts)
+    # One end date for every series: the latest date all of them have.
+    common = min(c.dropna().index[-1] for c in closes.values())
+    closes = {t: c.loc[:common] for t, c in closes.items()}
+    end_ts = common
     wide = pd.DataFrame({t: closes[t] for t in tickers_})
     rebased = an.rebase(wide)
     if rebased.empty:
@@ -51,7 +55,7 @@ def compare(tickers: str = Tickers, benchmark: str | None = Query(None, descript
     metrics = {t: _metrics(ctx, source, t, c, start_ts, end_ts) for t, c in closes.items() if t in tickers_}
     return {
         "tickers": tickers_, "names": {t: display_name(t, names(ctx)) for t in tickers_},
-        "benchmark": benchmark, "frequency": freq,
+        "benchmark": benchmark, "frequency": freq, "end": common,
         "rebased": {"start": rebased.index[0], "note": REBASE_NOTE, "dates": iso_dates(rebased.index),
                     "series": {t: rebased[t].tolist() for t in tickers_}},
         "metric_ids": s.compare_metrics,

@@ -46,6 +46,8 @@ export const FIELD_META = {
     auto_update_on_open: { label: "Update cache when the app opens" },
     stale_after_hours: { label: "Refresh after", suffix: "hours" },
     request_throttle_seconds: { label: "Pause between downloads", suffix: "seconds", step: 0.1 },
+    nse_request_gap_seconds: { label: "Pause between NSE requests", suffix: "seconds", step: 0.5 },
+    short_history_days: { label: "Mark as short history below", suffix: "days", step: 30 },
     default_period: { widget: "select", options: opts(PERIODS.map((p) => [p, p])) },
     default_series: () => ({ label: "Default series", options: [...catalogIndex().values()].map((i) => ({ value: i.ticker, label: i.name })), ordered: true }),
   },

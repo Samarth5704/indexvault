@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from indexvault.indices import merge_catalog
+from indexvault.indices import DEFAULT_SOURCE, merge_catalog
 
 from .settings import Slug, _source, _unique
 from .storage import config_dir, read_json, set_aside, write_json_atomic
@@ -43,6 +43,8 @@ class CatalogFile(_Model):
     schema_version: Literal[1] = 1
     custom_indices: list[CustomIndex] = Field(default_factory=list, max_length=500)
     watchlists: list[Watchlist] = Field(default_factory=list, max_length=100)
+    # ticker -> source to use for it instead of its default (e.g. a CSV import)
+    source_overrides: dict[Ticker, Annotated[str, AfterValidator(_source)]] = Field(default_factory=dict, max_length=500)
 
     @model_validator(mode="after")
     def _unique_ids(self):
@@ -109,6 +111,20 @@ class CatalogStore:
     def delete_watchlist(self, id: str) -> None:
         self._delete("watchlists", id)
 
+    def set_override(self, ticker: str, source: str) -> dict[str, str]:
+        with self._lock:
+            cur = self.get()
+            self.replace({**cur.model_dump(), "source_overrides": {**cur.source_overrides, ticker: source}})
+            return self.get().source_overrides
+
+    def delete_override(self, ticker: str) -> None:
+        with self._lock:
+            cur = self.get()
+            if ticker not in cur.source_overrides:
+                raise KeyError(ticker)
+            rest = {t: s for t, s in cur.source_overrides.items() if t != ticker}
+            self.replace({**cur.model_dump(), "source_overrides": rest})
+
     def reorder_watchlists(self, ids: list[str]) -> list[Watchlist]:
         with self._lock:
             cur = self.get()
@@ -131,11 +147,12 @@ class CatalogStore:
             for name, ticker in items.items():
                 c = custom.get((cat, name))
                 rows.append({"name": name, "ticker": ticker,
-                             "source": c.source if c else "yahoo",
+                             "source": c.source if c else DEFAULT_SOURCE.get(ticker, "yahoo"),
                              "custom": c is not None, "id": c.id if c else None})
             categories.append({"name": cat, "items": rows})
         return {"categories": categories,
-                "watchlists": [w.model_dump() for w in cur.watchlists]}
+                "watchlists": [w.model_dump() for w in cur.watchlists],
+                "source_overrides": dict(cur.source_overrides)}
 
     # -- internals --------------------------------------------------------- #
     def _save_with(self, field: str, item: BaseModel) -> None:

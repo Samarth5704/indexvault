@@ -8,6 +8,7 @@ import { resolveColour } from "../charts/theme.js";
 import { createTimeChart } from "../charts/timeseries.js";
 import { chartCard, staticTable } from "../components/chart-card.js";
 import { emptyState, errorState, skeleton } from "../components/feedback.js";
+import { shortHistoryNote } from "../components/history-tag.js";
 import { seriesLegend, tooManySeriesNote } from "../components/legend.js";
 import { seriesName } from "../components/series-picker.js";
 import { h, icon } from "../dom.js";
@@ -96,7 +97,7 @@ export default {
       const tableBody = h("div.card-pad", skeleton({ lines: 4 }));
       const tableCard = h("section.card.span-6", h("header.card-head", h("div.card-titles", h("h3.card-title", "Summary"),
         h("p.card-sub", `${label} periods · target ${pct(st.target, 1)} a year`))), tableBody);
-      body.replaceChildren(...[tooManySeriesNote(st.series.length), h("div.grid", lines.el, dist.el, tableCard)].filter(Boolean));
+      body.replaceChildren(...[tooManySeriesNote(st.series.length), shortHistoryNote(st.series), h("div.grid", lines.el, dist.el, tableCard)].filter(Boolean));
       lines.loading();
       dist.loading();
 

@@ -3,6 +3,10 @@
 
 const BASE = "/api";
 const DEFAULT_TIMEOUT = 30_000;
+// A first download of a long history from niftyindices.com goes a year per request
+// (politely spaced), so very long ranges get more time before we give up.
+const LONG_TIMEOUT = 180_000;
+const LONG_PERIODS = new Set(["Max", "15Y", "20Y"]);
 const CACHE_TTL = 60_000;
 const cache = new Map(); // url -> {at, promise}
 
@@ -62,7 +66,8 @@ export const api = {
     const key = url(path, params);
     const hit = cache.get(key);
     if (!fresh && hit && Date.now() - hit.at < CACHE_TTL) return hit.promise;
-    const promise = request("GET", path, { params, ...opts });
+    const long = LONG_PERIODS.has(params?.period) || (params?.start && params.start < String(new Date().getFullYear() - 12));
+    const promise = request("GET", path, { params, timeout: long ? LONG_TIMEOUT : DEFAULT_TIMEOUT, ...opts });
     cache.set(key, { at: Date.now(), promise });
     promise.catch(() => cache.delete(key));
     return promise;

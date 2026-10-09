@@ -313,3 +313,24 @@ th:hover .th-menu, .th-menu:focus-visible { opacity: 1; }
 .chip-toggle[aria-pressed="false"] .chip-dot { opacity: .35; }
 .btn.toggle[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 .data-table td.neg { color: var(--loss); }
+
+/* ---------------------------------------------------------------- series tags (Price / TRI / short history) */
+.series-tag {
+  display: inline-flex; align-items: center; gap: 2px; flex: none; height: 18px; padding: 0 6px;
+  border-radius: var(--radius-pill); border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text-2); font-size: var(--fs-xs); font-weight: var(--fw-label); line-height: 1; white-space: nowrap;
+}
+.series-tag .icon { width: 12px; height: 12px; }
+.series-tag[data-kind="tri"] { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 40%, transparent); background: var(--accent-soft); }
+.series-tag[data-kind="short"] { color: var(--text); border-color: color-mix(in oklab, var(--warning) 55%, transparent); background: color-mix(in oklab, var(--warning) 14%, transparent); }
+.series-tag[data-kind="short"] .icon { color: var(--warning); }
+.picker-name { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; }
+.picker-name > .truncate { min-width: 0; }
+.chip-warn { display: inline-flex; color: var(--warning); }
+.series-tab .series-tag, .legend .series-tag { margin-left: 2px; }
+.series-note[data-tone="warning"] { border-left: 3px solid var(--warning); }
+.series-note .icon { display: inline; vertical-align: -3px; margin-right: var(--sp-1); }
+.empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-2); }
+.empty-actions:empty { display: none; }
+.empty-actions .btn { margin-top: 0; }
+a.btn:hover { text-decoration: none; }

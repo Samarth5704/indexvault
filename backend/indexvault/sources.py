@@ -17,6 +17,9 @@ import numpy as np
 import pandas as pd
 
 COLUMNS = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
+# Optional extra columns kept when a source provides them (NTR = net total return
+# index, alongside the gross TRI close from niftyindices.com).
+EXTRA_COLUMNS = ["NTR"]
 
 Fetch = Callable[[str, pd.Timestamp, pd.Timestamp], pd.DataFrame]
 
@@ -64,7 +67,7 @@ def clean(df: pd.DataFrame | None) -> pd.DataFrame:
         df["Adj Close"] = df["Close"]
     if "Volume" not in df.columns:
         df["Volume"] = 0
-    df = df[[c for c in COLUMNS if c in df.columns]]
+    df = df[[c for c in [*COLUMNS, *EXTRA_COLUMNS] if c in df.columns]]
     idx = pd.to_datetime(df.index)
     if getattr(idx, "tz", None) is not None:
         idx = idx.tz_localize(None)

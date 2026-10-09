@@ -93,7 +93,7 @@ def settings_restore(body: dict = Body(...), ctx: AppContext = Depends(get_ctx))
     _guard_cache_dir(ctx, settings.data.model_dump())
     ctx.settings_store.replace(settings)
     ctx.catalog.replace(catalog)
-    return {"settings": ctx.settings, "catalog": ctx.catalog.merged()}
+    return {"settings": ctx.settings, "catalog": ctx.catalog_payload()}
 
 
 @router.post("/settings/reset")
@@ -121,7 +121,7 @@ def patch_settings(section: str, body: Any = Body(...), ctx: AppContext = Depend
 # --------------------------------------------------------------------------- #
 @router.get("/catalog")
 def get_catalog(ctx: AppContext = Depends(get_ctx)):
-    return ctx.catalog.merged()
+    return ctx.catalog_payload()
 
 
 def _exists(items, id: str) -> bool:
@@ -176,4 +176,28 @@ def delete_watchlist(id: str, ctx: AppContext = Depends(get_ctx)):
         ctx.catalog.delete_watchlist(id)
     except KeyError:
         raise not_found(f"No watchlist {id!r}.") from None
+    return Response(status_code=204)
+
+
+# --------------------------------------------------------------------------- #
+# Per-ticker source overrides (e.g. "use my CSV import for NIFTY Auto")
+# --------------------------------------------------------------------------- #
+@router.put("/catalog/overrides/{ticker}")
+def put_override(ticker: str, body: dict = Body(..., examples=[{"source": "csv"}]),
+                 ctx: AppContext = Depends(get_ctx)):
+    """Serve `ticker` from `source` instead of its default. Returns all overrides."""
+    source = body.get("source")
+    if not source:
+        raise bad_request('Body needs a "source", e.g. {"source": "csv"}.')
+    if source == "csv" and not data.has_import(ticker):
+        raise bad_request(f"No CSV has been imported for {ticker} yet.", ticker=ticker)
+    return ctx.catalog.set_override(ticker, source)
+
+
+@router.delete("/catalog/overrides/{ticker}", status_code=204)
+def delete_override(ticker: str, ctx: AppContext = Depends(get_ctx)):
+    try:
+        ctx.catalog.delete_override(ticker)
+    except KeyError:
+        raise not_found(f"No source override for {ticker!r}.") from None
     return Response(status_code=204)

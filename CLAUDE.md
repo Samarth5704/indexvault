@@ -90,5 +90,9 @@ tests, then regenerate the lock (see the header of requirements.lock).
 - Yahoo is unofficial; tickers can change — the Cache page has a ticker health check.
 - Index volume used to be zero on Yahoo; some indices (e.g. ^NSEI) now carry it. The API
   decides per series from the data (`volume_available` in `api/routers/series.py`).
-- Yahoo serves only the latest day for some NSE sectoral tickers; widgets name them and
-  the cache retries a backfill at most once a day.
+- Yahoo serves only the latest day for 11 NSE indices; they (and every TRI series) come
+  from niftyindices.com instead (`indexvault/nse.py`, `indices.DEFAULT_SOURCE`). That
+  source is **personal use only**, unofficial and polite (throttled, yearly chunks); on
+  failure the UI offers Cache → Import CSV. Sources resolve per ticker
+  (`AppContext.source_for`).
+- Price index vs TRI: always separate series, always labelled.

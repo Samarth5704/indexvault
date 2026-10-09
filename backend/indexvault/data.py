@@ -26,6 +26,7 @@ import pandas as pd
 
 from .sources import (  # noqa: F401  (re-exported for prototype-era callers)
     COLUMNS,
+    EXTRA_COLUMNS,
     SOURCE_INFO,
     SOURCES,
     available_sources,
@@ -35,6 +36,7 @@ from .sources import (  # noqa: F401  (re-exported for prototype-era callers)
     register_source,
     unregister_source,
 )
+from . import nse  # noqa: E402,F401  (registers the "nse" source)
 
 EARLIEST = pd.Timestamp("1990-01-01")
 IMPORTS_DIR = "_imports"
@@ -114,7 +116,8 @@ def load_cached(ticker: str, source: str = "yahoo") -> tuple[pd.DataFrame | None
 def _save(ticker: str, source: str, df: pd.DataFrame, info: dict) -> None:
     csv, meta = _paths(ticker, source)
     df.to_csv(csv, float_format="%.4f")
-    info = {**info, "ticker": ticker, "last_update": datetime.now().isoformat(timespec="seconds")}
+    info = {**info, "ticker": ticker, "last_update": datetime.now().isoformat(timespec="seconds"),
+            **_span(df.index)}
     meta.write_text(json.dumps(info, indent=2))
 
 
@@ -165,6 +168,10 @@ _CSV_ALIASES = {
     "close": "Close", "price": "Close", "last": "Close", "close price": "Close",
     "adj close": "Adj Close", "adj_close": "Adj Close", "adjclose": "Adj Close",
     "volume": "Volume", "shares traded": "Volume",
+    # niftyindices.com downloads (price and total return files)
+    "index date": "Date", "historicaldate": "Date",
+    "total returns index": "Close", "total return index": "Close", "totalreturnsindex": "Close", "tri": "Close",
+    "net total return index": "NTR", "net total returns index": "NTR", "ntr_value": "NTR", "ntr": "NTR",
 }
 
 
@@ -182,8 +189,14 @@ def parse_ohlcv_csv(src: str | os.PathLike | bytes, dayfirst: bool = False) -> p
         raw = raw.rename(columns={raw.columns[0]: "Date"})
     if "Close" not in raw.columns:
         raise ValueError("CSV needs a Close (or Price) column")
-    out = pd.DataFrame(index=pd.to_datetime(raw["Date"], dayfirst=dayfirst, format="mixed"))
-    for col in COLUMNS:
+    dates = raw["Date"].astype(str).str.strip()
+    if dates.str.fullmatch(r"\d{4}-\d{2}-\d{2}").all():
+        # ISO dates are unambiguous; never let `dayfirst` swap 2026-04-09 into 4 Sep
+        idx = pd.to_datetime(dates, format="%Y-%m-%d")
+    else:
+        idx = pd.to_datetime(dates, dayfirst=dayfirst, format="mixed")
+    out = pd.DataFrame(index=idx)
+    for col in [*COLUMNS, *EXTRA_COLUMNS]:
         if col in raw.columns:
             vals = raw[col].astype(str).str.replace(",", "", regex=False)
             out[col] = pd.to_numeric(vals, errors="coerce").to_numpy()
@@ -195,6 +208,11 @@ def parse_ohlcv_csv(src: str | os.PathLike | bytes, dayfirst: bool = False) -> p
 
 def _import_path(ticker: str) -> Path:
     return CACHE_ROOT / IMPORTS_DIR / f"{_safe(ticker)}.csv"
+
+
+def has_import(ticker: str) -> bool:
+    """Has a CSV been imported for `ticker`?"""
+    return _import_path(ticker).exists()
 
 
 def _fetch_csv(ticker: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
@@ -224,6 +242,29 @@ def import_csv(ticker: str, src: str | os.PathLike | bytes, dayfirst: bool = Fal
 # Public API
 # --------------------------------------------------------------------------- #
 TRUNCATED_ROWS = 5  # fewer rows than this over a long range = a truncated answer
+NEVER_BACKFILL = pd.Timestamp("1900-01-01")
+
+
+def _span(idx: pd.Index) -> dict:
+    """First/last date and row count, stored in each cache file's meta."""
+    if not len(idx):
+        return {"first_date": None, "last_date": None, "rows": 0}
+    return {"first_date": str(idx.min().date()), "last_date": str(idx.max().date()), "rows": int(len(idx))}
+
+
+def cache_span(ticker: str, source: str) -> dict | None:
+    """{first_date, last_date, rows} of a cached series, or None if not cached.
+    Read from the meta file; older files without it get it computed once and saved."""
+    csv, meta = _paths(ticker, source)
+    if not csv.exists():
+        return None
+    info = json.loads(meta.read_text()) if meta.exists() else {}
+    if not info.get("first_date"):
+        with _ticker_lock(source, ticker):
+            idx = pd.read_csv(csv, usecols=[0], index_col=0, parse_dates=True).index
+            info = {**info, **_span(idx)}
+            meta.write_text(json.dumps(info, indent=2))
+    return {k: info.get(k) for k in ("first_date", "last_date", "rows", "earliest_available", "requested_start")}
 
 
 def _requested_start(cached: pd.DataFrame, info: dict) -> pd.Timestamp:
@@ -235,6 +276,8 @@ def _requested_start(cached: pd.DataFrame, info: dict) -> pd.Timestamp:
     covering only what it actually holds (the next request backfills). If a
     backfill already came back empty today, the source really has no more, so
     the recorded range is trusted until tomorrow (one retry a day)."""
+    if info.get("earliest_available"):  # the source has nothing older: never backfill
+        return NEVER_BACKFILL
     recorded = pd.Timestamp(info.get("requested_start", cached.index.min()))
     first = cached.index.min()
     tried_today = info.get("backfill_empty_on") == date.today().isoformat()
@@ -301,17 +344,22 @@ def get_data(
         if refresh or cached is None or cached.empty:
             df = fetch(ticker, start, end)
             if not df.empty:
-                _save(ticker, source, df, {"requested_start": str(start.date())})
+                first_meta = {"requested_start": str(start.date())}
+                if df.attrs.get("no_data_before"):  # the source walked back to its first year
+                    first_meta["earliest_available"] = str(df.index.min().date())
+                _save(ticker, source, df, first_meta)
             return df.loc[start:end]
 
         pieces = [cached]
         req_start = _requested_start(cached, info)
-        extra = {}
+        extra = {k: info[k] for k in ("earliest_available",) if info.get(k)}  # carried forward
         if start < req_start:  # backfill older history
             older = fetch(ticker, start, cached.index.min() - timedelta(days=1))
             pieces.insert(0, older)
             req_start = min(start, pd.Timestamp(info.get("requested_start", start)))
-            if older.empty:
+            if older.attrs.get("no_data_before"):  # reached the source's first year
+                extra["earliest_available"] = str((cached.index.min() if older.empty else older.index.min()).date())
+            elif older.empty:
                 extra["backfill_empty_on"] = date.today().isoformat()
         if _wants_newer(cached, info, end, stale_after_hours):
             # small overlap so revised last bars get corrected
@@ -349,10 +397,10 @@ def resample(df: pd.DataFrame, freq: str, add_returns: bool = True) -> pd.DataFr
     out = df.copy()
     if rule is not None and not df.empty:
         g = df.resample(rule)
-        out = g.agg({
-            "Open": "first", "High": "max", "Low": "min",
-            "Close": "last", "Adj Close": "last", "Volume": "sum",
-        })
+        agg = {"Open": "first", "High": "max", "Low": "min",
+               "Close": "last", "Adj Close": "last", "Volume": "sum"}
+        agg.update({c: "last" for c in EXTRA_COLUMNS if c in df.columns})
+        out = g.agg(agg)
         last_dates = df.index.to_series().resample(rule).max()
         out.index = last_dates.reindex(out.index).values
         out = out.dropna(subset=["Close"])

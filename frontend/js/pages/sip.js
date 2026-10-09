@@ -10,6 +10,7 @@ import { emptyState, errorState } from "../components/feedback.js";
 import { kpiCard } from "../components/kpi-card.js";
 import { seriesName } from "../components/series-picker.js";
 import { toast, toastError } from "../components/toast.js";
+import { shortHistoryNote } from "../components/history-tag.js";
 import { h, icon } from "../dom.js";
 import { setPageParams } from "../router.js";
 import { format, settings } from "../settings.js";
@@ -160,7 +161,7 @@ export default {
       const scenCard = h("section.card.span-12", h("header.card-head", h("div.card-titles", h("h3.card-title", "Scenarios"),
         h("p.card-sub", `Save up to ${MAX_SCENARIOS} and compare them over the same period · stored in this browser`))), scenBody);
 
-      body.replaceChildren(kpis, h("div.grid", formCard, chart.el, sens.el, scenCard));
+      body.replaceChildren(...[shortHistoryNote(selection().series), kpis, h("div.grid", formCard, chart.el, sens.el, scenCard)].filter(Boolean));
       view = { kpis, saveBtn, chart, sens, scenBody, tc: null, gridChart: null, res: null };
       renderScenarios(scenBody);
       run();

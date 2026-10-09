@@ -125,7 +125,8 @@ def test_catalog_crud(client):
                                                           "category": "Factor"}).status_code == 200
     cats = {c["name"]: c["items"] for c in client.get("/api/catalog").json()["categories"]}
     assert cats["Factor"] == [{"name": "Momentum 30 v2", "ticker": "MOM30.NS", "source": "yahoo",
-                               "custom": True, "id": "mom30"}]
+                               "custom": True, "id": "mom30", "used_source": "demo",  # tests run in Demo mode
+                               "kind": "price", "history": None}]
     assert client.delete("/api/catalog/indices/mom30").status_code == 204
     assert client.delete("/api/catalog/indices/mom30").status_code == 404
     assert client.post("/api/catalog/indices/Bad%20Id", json={"name": "x", "ticker": "X"}).status_code == 422

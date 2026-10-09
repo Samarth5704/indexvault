@@ -134,6 +134,8 @@ class DataSettings(Section):
     auto_update_on_open: bool = Field(True, description="Update cached series when the app opens.")
     stale_after_hours: float = Field(3, ge=0, le=168, description="Refetch recent data once the cache is older than this.")
     request_throttle_seconds: float = Field(0.5, ge=0, le=10, description="Pause between downloads in bulk jobs, to be polite to the source.")
+    nse_request_gap_seconds: float = Field(1.0, ge=0.5, le=10, description="Minimum pause between requests to niftyindices.com (the NSE source), to be polite to the site.")
+    short_history_days: int = Field(365, ge=30, le=3650, description="Series with less history than this are marked as short in pickers and on pages.")
     default_period: Literal[PERIODS] = Field("10Y", description="Date range selected on first load.")
     default_frequency: Frequency = Field("Daily", description="Frequency selected on first load.")
     default_series: Annotated[list[Annotated[str, Field(min_length=1, max_length=40)]], AfterValidator(_unique)] = Field(

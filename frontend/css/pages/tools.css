@@ -62,3 +62,13 @@
   .form-row { grid-template-columns: 1fr; }
   .cache-location { padding: var(--sp-3); }
 }
+
+/* Cache: CSV import + left-over files */
+.cache-table tr[data-unused] td { color: var(--text-muted); }
+.cache-note { color: var(--text-muted); font-size: var(--fs-xs); }
+.import-form { display: flex; flex-direction: column; gap: var(--sp-3); max-width: 720px; }
+.import-form .select, .import-form .input { width: 100%; }
+.import-actions { display: flex; gap: var(--sp-2); }
+.import-result p { display: flex; gap: var(--sp-2); align-items: flex-start; font-size: var(--fs-sm); }
+.import-ok .icon { color: var(--good); flex: none; margin-top: 2px; }
+.import-warn .icon { color: var(--warning); flex: none; margin-top: 2px; }

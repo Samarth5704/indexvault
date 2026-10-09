@@ -4,11 +4,12 @@
 
 import { api, enc } from "../api.js";
 import { copyText } from "../clipboard.js";
-import { columnKind, columnLabel, columnsFromParam, DEFAULT_COLUMNS, formatCell } from "../columns.js";
+import { columnKind, columnLabel, columnsFromParam, DEFAULT_COLUMNS, formatCell, TRI_COLUMNS } from "../columns.js";
 import { openColumnBuilder } from "../components/column-builder.js";
 import { dataTable } from "../components/data-table.js";
 import { openExportPanel } from "../components/export-panel.js";
 import { emptyState, errorState, skeleton } from "../components/feedback.js";
+import { isTri } from "../components/history-tag.js";
 import { seriesName } from "../components/series-picker.js";
 import { activeTicker, seriesTabs } from "../components/series-tabs.js";
 import { runJobWithToast, toast } from "../components/toast.js";
@@ -31,7 +32,7 @@ export function toMarkdown({ columns, rows }) {
 export default {
   mount(el, ctx) {
     const params = () => store.get().route.params;
-    const cols = () => columnsFromParam(params().cols) || [...DEFAULT_COLUMNS];
+    const cols = () => columnsFromParam(params().cols) || [...(isTri(activeTicker() || "") ? TRI_COLUMNS : DEFAULT_COLUMNS)];
     const active = activeTicker;
     const tabs = seriesTabs();
     const meta = h("p.studio-meta.text-2", { "aria-live": "polite" });
