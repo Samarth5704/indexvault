@@ -1,4 +1,22 @@
+# Line endings: the repository stores LF and every checkout uses LF too, on Windows
+# as well as macOS/Linux. This overrides core.autocrlf, so Git never converts files
+# (and never warns "LF will be replaced by CRLF").
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files: never diffed or converted.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+*.xlsx binary
+*.zip binary
+
 # Vendored libraries and fonts must stay byte-identical to the sha256 sums in
 # frontend/vendor/VERSIONS.md, so Git must never rewrite their line endings.
+# (Kept last so it wins over the rules above.)
 frontend/vendor/** -text
-*.woff2 binary

@@ -7,4 +7,4 @@ numpy>=1.26
 scipy>=1.11
 openpyxl>=3.1
 pytest>=8.0
-httpx>=0.27
+httpx2>=2.13     # TestClient transport (starlette.testclient prefers it; plain httpx is deprecated)
