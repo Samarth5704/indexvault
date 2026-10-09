@@ -176,17 +176,21 @@ export function corrMatrixOption(t, { labels, matrix }) {
 /** Risk (x) vs return (y) scatter; each point in its series' slot colour, labelled directly. */
 export function scatterOption(t, { points, fmt }) {
   return {
-    grid: grid({ top: 24, right: 24 }),
+    // containLabel leaves out axis names: room above for "CAGR", below for "Volatility"
+    grid: grid({ top: 36, right: 24, bottom: 28 }),
     tooltip: tooltip(t, { formatter: (p) => `${p.data.name}<br>Return <b>${fmt(p.data.value[1])}</b><br>Volatility <b>${fmt(p.data.value[0])}</b>` }),
+    // minInterval 1%: ticks are whole percents, so 0-decimal labels never repeat
     xAxis: { type: "value", name: "Volatility", nameLocation: "middle", nameGap: 28, nameTextStyle: { color: t.muted },
-      scale: true, ...axisStyle(t), axisLabel: { ...axisStyle(t).axisLabel, formatter: (v) => fmt(v, 0) } },
-    yAxis: { type: "value", name: "CAGR", nameTextStyle: { color: t.muted }, scale: true, ...axisStyle(t),
+      scale: true, minInterval: 0.01, ...axisStyle(t), axisLabel: { ...axisStyle(t).axisLabel, formatter: (v) => fmt(v, 0) } },
+    yAxis: { type: "value", name: "CAGR", nameTextStyle: { color: t.muted }, scale: true, minInterval: 0.01, ...axisStyle(t),
       axisLabel: { ...axisStyle(t).axisLabel, formatter: (v) => fmt(v, 0) } },
     series: [{
       type: "scatter", symbolSize: 14,
       data: points.map((p) => ({ name: p.name, value: [p.x, p.y], itemStyle: { color: p.colour, borderColor: t.surface, borderWidth: 2 } })),
       label: { show: points.length <= 10, position: "right", color: t.text2, fontSize: t.fontSize, formatter: (p) => p.data.name },
-      labelLayout: { hideOverlap: true },
+      // a name that would run off the right edge goes on the point's left instead
+      labelLayout: (p) => (p.labelRect.x + p.labelRect.width > t.width - 4
+        ? { x: p.rect.x - 4, align: "right", hideOverlap: true } : { hideOverlap: true }),
     }],
   };
 }

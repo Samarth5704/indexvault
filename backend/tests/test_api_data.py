@@ -33,7 +33,8 @@ def test_series_default_columns(client):
     assert body["meta"]["has_volume"] is False
     assert any("Synthetic" in c for c in body["meta"]["caveats"])
     df = as_frame(body)
-    assert df.index[0] >= pd.Timestamp.today().normalize() - pd.DateOffset(years=1)
+    # first row = the trailing-return base: last close on/before (last date - 1Y)
+    assert df.index[0] <= df.index[-1] - pd.DateOffset(years=1) < df.index[1]
     assert df["return"].iloc[5] == pytest.approx(df["close"].iloc[5] / df["close"].iloc[4] - 1)  # decimal
 
 

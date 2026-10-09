@@ -147,12 +147,14 @@ export const format = {
     return missing(v) ? DASH : `${format.number(v * 100, { decimals, sign })}%`;
   },
 
-  /** Money with the user's currency. compact: ₹12.3 L / ₹1.23 Cr (Indian) or ₹1.2M. */
-  money(v, { compact = false, decimals } = {}) {
+  /** Money with the user's currency. compact: ₹12.3 L / ₹1.23 Cr (Indian) or ₹1.2M.
+   *  unit (from moneyUnit): always that unit, whole numbers by default (₹150 L). */
+  money(v, { compact = false, decimals, unit } = {}) {
     if (missing(v)) return DASH;
     const { currency, number_system } = formats();
     const neg = v < 0 ? MINUS : "";
     const a = Math.abs(v);
+    if (unit) return `${neg}${currency}${format.number(a / unit.div, { decimals: decimals ?? 0 })}${unit.suffix}`;
     if (compact && number_system === "indian" && a >= 1e5) {
       const [div, unit] = a >= 1e7 ? [1e7, "Cr"] : [1e5, "L"];
       return `${neg}${currency}${format.number(a / div, { decimals: decimals ?? 2 })} ${unit}`;
@@ -162,6 +164,14 @@ export const format = {
       return `${neg}${currency}${text}`;
     }
     return `${neg}${currency}${format.number(a, { decimals: decimals ?? 0 })}`;
+  },
+
+  /** Largest money unit (Cr/L or B/M/K) that `max` reaches at least twice, so an axis
+   *  in whole units still gets a few ticks. {div: 1, suffix: ""} below the smallest. */
+  moneyUnit(max) {
+    const units = formats().number_system === "indian" ? [[1e7, " Cr"], [1e5, " L"]] : [[1e9, "B"], [1e6, "M"], [1e3, "K"]];
+    const [div, suffix] = units.find(([d]) => Math.abs(max) >= 2 * d) || [1, ""];
+    return { div, suffix };
   },
 
   /** ISO "YYYY-MM-DD" -> user's date format. */

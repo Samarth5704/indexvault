@@ -216,7 +216,7 @@ export default {
         h("li", h("span.chip-dot", { style: { background: seriesColour(inp.ticker) } }), "Value"),
         h("li", h("span.legend-line.dashed"), "Invested"),
         h("li", h("span.legend-line"), "Lump sum")), plot));
-      const tc = view.tc = await createTimeChart(plot, { height: 320, valueFormat: money });
+      const tc = view.tc = await createTimeChart(plot, { height: 320, valueFormat: money, ticks: "money" });
       track(() => tc.destroy());
       const col = (name) => res.ledger.columns.indexOf(name);
       const line = (name) => res.ledger.rows.filter((r) => r[col(name)] != null).map((r) => ({ time: r[0], value: r[col(name)] }));

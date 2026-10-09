@@ -15,7 +15,7 @@ from scipy import stats as sps
 from indexvault import analytics as an
 from indexvault.indices import display_name
 
-from ..context import AppContext, get_ctx
+from ..context import AppContext, get_ctx, nominal_start, period_anchor
 from ..errors import bad_request
 from ..jsonutil import JsonableRoute, convert_record, convert_rows, iso_dates, series_payload
 from ..metrics import METRICS, from_core
@@ -28,15 +28,18 @@ Period = Query(None, description="1M…20Y, YTD or Max; ignored if start is give
 
 
 def _inputs(ctx: AppContext, tickers: str, period, start, end, source):
+    """(source or None, tickers, start, end, anchor). `anchor` is the period label
+    when the window is a period ending on the data's last date (not explicit dates)."""
     source = ctx.explicit_source(source)  # None = each ticker's own source
     tickers_ = ctx.tickers(tickers)
     start_ts, end_ts = ctx.date_range(period, start, end)
-    return source, tickers_, start_ts, end_ts
+    anchor = period_anchor(period or ctx.settings.data.default_period, start)
+    return source, tickers_, start_ts, end_ts, anchor
 
 
 def _single(ctx: AppContext, ticker: str, period, start, end, source):
-    source, (t,), start_ts, end_ts = _inputs(ctx, ticker, period, start, end, source)
-    return source, t, start_ts, end_ts, ctx.frame(t, source, start_ts, end_ts)["Close"]
+    source, (t,), start_ts, end_ts, anchor = _inputs(ctx, ticker, period, start, end, source)
+    return source, t, start_ts, end_ts, ctx.frame(t, source, start_ts, end_ts, anchor=anchor)["Close"]
 
 
 def _range(close: pd.Series) -> dict:
@@ -53,12 +56,15 @@ def summary(tickers: str = Tickers, start: date | None = None, end: date | None 
             ctx: AppContext = Depends(get_ctx)):
     s = ctx.settings.analytics
     rf = s.risk_free_rate if rf is None else rf
-    source, tickers_, start_ts, end_ts = _inputs(ctx, tickers, period, start, end, source)
-    closes = ctx.closes(tickers_, source, start_ts, end_ts)
-    key = (str(start_ts), str(end_ts), rf, s.trading_days)
+    source, tickers_, start_ts, end_ts, anchor = _inputs(ctx, tickers, period, start, end, source)
+    closes = ctx.closes(tickers_, source, start_ts, end_ts, anchor)
+    # Period windows count CAGR years from the nominal start ("10Y before the last
+    # date"), exactly like the trailing-returns table, so the two always agree.
+    nominal = {t: nominal_start(anchor, c.index[-1]) if anchor else None for t, c in closes.items()}
     series = {t: {"name": display_name(t, names(ctx)), **_range(c),
-                  "metrics": ctx.computed("summary", [t], source, key,
-                                          lambda c=c: from_core(an.summary_metrics(c, rf, s.trading_days)))}
+                  "metrics": ctx.computed("summary", [t], source,
+                                          (str(c.index[0]), str(c.index[-1]), str(nominal[t]), rf, s.trading_days),
+                                          lambda c=c, t=t: from_core(an.summary_metrics(c, rf, s.trading_days, nominal[t])))}
               for t, c in closes.items()}
     return {"params": {"rf": rf, "trading_days": s.trading_days},
             "metrics": [{"id": m.id, "label": m.label, "kind": m.kind} for m in METRICS.values()],
@@ -157,7 +163,7 @@ def rolling_vol(ticker: str, start: date | None = None, end: date | None = None,
                 window: int | None = Query(None, ge=5, le=1000), ctx: AppContext = Depends(get_ctx)):
     s = ctx.settings.analytics
     window = window or s.rolling_vol_window
-    source, (t,), start_ts, end_ts = _inputs(ctx, ticker, period, start, end, source)
+    source, (t,), start_ts, end_ts, _ = _inputs(ctx, ticker, period, start, end, source)
     close = ctx.frame(t, source, start_ts, end_ts, warmup=pd.DateOffset(days=int(window * 1.6) + 10))["Close"]
     vol = an.rolling_volatility(close, window, s.trading_days)
     vol = vol.loc[start_ts:] if start_ts is not None else vol
@@ -218,9 +224,9 @@ def _quality(df: pd.DataFrame, ticker: str, big_move: float, gap_days: int) -> d
 def quality(tickers: str = Tickers, start: date | None = None, end: date | None = None,
             period: str | None = Period, source: str | None = None, ctx: AppContext = Depends(get_ctx)):
     s = ctx.settings.analytics
-    source, tickers_, start_ts, end_ts = _inputs(ctx, tickers, period, start, end, source)
+    source, tickers_, start_ts, end_ts, anchor = _inputs(ctx, tickers, period, start, end, source)
     return {"thresholds": {"big_move": s.big_move_threshold, "gap_days": s.quality_gap_days},
-            "series": {t: _quality(ctx.frame(t, source, start_ts, end_ts), t,
+            "series": {t: _quality(ctx.frame(t, source, start_ts, end_ts, anchor=anchor), t,
                                    s.big_move_threshold, s.quality_gap_days) for t in tickers_}}
 
 

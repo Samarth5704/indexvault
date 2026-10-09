@@ -26,6 +26,27 @@ from .settings_store import SettingsStore
 from .storage import resolve_path
 
 MAX_TICKERS = 20
+ANCHOR_MARGIN = pd.DateOffset(days=14)  # loaded before a period start, to find the base close
+
+
+def period_anchor(period: str | None, start) -> str | None:
+    """The period label a window is anchored on, or None for explicit dates / Max."""
+    return None if start or not period or period == "Max" else period
+
+
+def nominal_start(label: str, last: pd.Timestamp) -> pd.Timestamp:
+    """"10Y before the last date" (YTD: 31 Dec of the previous year)."""
+    off = an.period_offset(label)
+    return pd.Timestamp(last.year - 1, 12, 31) if off is None else last - off
+
+
+def anchor_slice(df, label: str, last: pd.Timestamp):
+    """Window for a period: from the last row on/before the nominal start (the same
+    rule as trailing returns) to `last`. Shorter series start at their first row."""
+    df = df.loc[:last]
+    nominal = nominal_start(label, last)
+    before = df.index[df.index <= nominal]
+    return df.loc[before[-1] if len(before) else df.index[0]:]
 
 
 class AppContext:
@@ -159,9 +180,16 @@ class AppContext:
         return df
 
     def frame(self, ticker: str, source: str | None, start: pd.Timestamp | None, end: pd.Timestamp,
-              warmup: pd.DateOffset | None = None) -> pd.DataFrame:
+              warmup: pd.DateOffset | None = None, anchor: str | None = None,
+              last: pd.Timestamp | None = None) -> pd.DataFrame:
         """Daily OHLCV in [start, end]. `warmup` loads that much extra history
-        before start (for indicators); trim it yourself after computing."""
+        before start (for indicators); trim it yourself after computing.
+        `anchor` (a period label): the window is "period before the last date"
+        instead of before `end` (see `anchor_slice`); `last` overrides the last date
+        (a common end for several series)."""
+        if anchor and warmup is None:
+            df = self.frame(ticker, source, start - ANCHOR_MARGIN, end)
+            return anchor_slice(df, anchor, min(last, df.index[-1]) if last is not None else df.index[-1])
         load_from = start - warmup if (start is not None and warmup is not None) else start
         df = self.full_frame(ticker, source, load_from, end)
         out = df.loc[load_from:end] if load_from is not None else df.loc[:end]
@@ -169,8 +197,15 @@ class AppContext:
             raise not_found(f"No {ticker} data between {_d(start)} and {_d(end)}.", ticker=ticker)
         return out
 
-    def closes(self, tickers: list[str], source: str | None, start, end) -> dict[str, pd.Series]:
-        return {t: self.frame(t, source, start, end)["Close"] for t in tickers}
+    def closes(self, tickers: list[str], source: str | None, start, end,
+               anchor: str | None = None) -> dict[str, pd.Series]:
+        """Closes per ticker. With `anchor`, every series is anchored on the latest
+        date all of them share, so they cover exactly the same window."""
+        if not anchor:
+            return {t: self.frame(t, source, start, end)["Close"] for t in tickers}
+        raw = {t: self.frame(t, source, start - ANCHOR_MARGIN, end)["Close"].dropna() for t in tickers}
+        common = min(c.index[-1] for c in raw.values())
+        return {t: anchor_slice(c, anchor, common) for t, c in raw.items()}
 
     def computed(self, name: str, tickers: Iterable[str], source: str | None, params: Hashable,
                  fn: Callable[[], Any]) -> Any:

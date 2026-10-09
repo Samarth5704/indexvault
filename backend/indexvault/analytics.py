@@ -69,11 +69,14 @@ def years_between(a: pd.Timestamp, b: pd.Timestamp) -> float:
     return (b - a).days / 365.25
 
 
-def cagr(close: pd.Series) -> float:
+def cagr(close: pd.Series, start: pd.Timestamp | None = None) -> float:
+    """Compound annual growth from the first to the last close. `start` (optional)
+    is the nominal start the years are counted from, e.g. "10 years before the last
+    date" when the first close is the last one on/before it, as factsheets do."""
     close = close.dropna()
     if len(close) < 2:
         return np.nan
-    yrs = years_between(close.index[0], close.index[-1])
+    yrs = years_between(start if start is not None else close.index[0], close.index[-1])
     if yrs <= 0:
         return np.nan
     return (close.iloc[-1] / close.iloc[0]) ** (1 / yrs) - 1
@@ -120,8 +123,10 @@ def drawdown_table(close: pd.Series, top: int = 5) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def summary_metrics(close: pd.Series, rf: float = 0.065, trading_days: int = TD) -> dict:
-    """Headline risk/return statistics. rf = annual risk-free rate (decimal)."""
+def summary_metrics(close: pd.Series, rf: float = 0.065, trading_days: int = TD,
+                    start: pd.Timestamp | None = None) -> dict:
+    """Headline risk/return statistics. rf = annual risk-free rate (decimal).
+    `start` = nominal start for the CAGR year count (see `cagr`)."""
     close = close.dropna()
     r = daily_returns(close)
     if len(r) < 5:
@@ -131,7 +136,7 @@ def summary_metrics(close: pd.Series, rf: float = 0.065, trading_days: int = TD)
     ex = r - rf_d
     vol = r.std() * np.sqrt(td)
     downside = np.sqrt((np.minimum(ex, 0) ** 2).mean()) * np.sqrt(td)
-    g = cagr(close)
+    g = cagr(close, start)
     dd = drawdown(close)
     mdd = dd.min()
     monthly = close.resample("ME").last().pct_change().dropna()

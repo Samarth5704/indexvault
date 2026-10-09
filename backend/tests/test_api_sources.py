@@ -158,3 +158,9 @@ def test_short_flag_only_when_the_source_has_no_more(live):
     data._save("^CNXMEDIA", "yahoo", data._clean(stale), {"requested_start": "2015-01-01"})
     assert live.put("/api/catalog/overrides/%5ECNXMEDIA", json={"source": "yahoo"}).status_code == 200
     assert items(live)["^CNXMEDIA"]["history"]["short"] is True                  # asked for 2015, got one day
+
+
+def test_period_cagr_matches_trailing(client):
+    s = client.get("/api/analytics/summary", params={"tickers": "^NSEI", "period": "10Y"}).json()
+    t = client.get("/api/analytics/trailing", params={"tickers": "^NSEI", "periods": "10Y"}).json()
+    assert round(s["series"]["^NSEI"]["metrics"]["cagr"], 10) == round(t["series"]["^NSEI"]["10Y"], 10)

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from indexvault import analytics as an
 from indexvault.indices import display_name
 
-from ..context import AppContext, get_ctx
+from ..context import AppContext, get_ctx, nominal_start
 from ..errors import bad_request
 from ..jsonutil import JsonableRoute, convert_record, iso_dates, series_payload
 from ..metrics import METRICS, from_core
@@ -25,12 +25,14 @@ REBASE_NOTE = ("All series are rebased to 100 on the first date every series has
                "so growth is compared over exactly the same period.")
 
 
-def _metrics(ctx: AppContext, source: str, ticker: str, close: pd.Series, start_ts, end_ts) -> dict:
-    """Same memo key as /analytics/summary, so the two share results."""
+def _metrics(ctx: AppContext, source: str | None, ticker: str, close: pd.Series, anchor: str | None) -> dict:
+    """Same rules and memo key as /analytics/summary (nominal start for period
+    windows), so a series' CAGR is identical on both pages."""
     s = ctx.settings.analytics
-    key = (str(start_ts), str(end_ts), s.risk_free_rate, s.trading_days)
+    nominal = nominal_start(anchor, close.index[-1]) if anchor else None
+    key = (str(close.index[0]), str(close.index[-1]), str(nominal), s.risk_free_rate, s.trading_days)
     return ctx.computed("summary", [ticker], source, key,
-                        lambda: from_core(an.summary_metrics(close, s.risk_free_rate, s.trading_days)))
+                        lambda: from_core(an.summary_metrics(close, s.risk_free_rate, s.trading_days, nominal)))
 
 
 @router.get("/compare")
@@ -40,9 +42,9 @@ def compare(tickers: str = Tickers, benchmark: str | None = Query(None, descript
             ctx: AppContext = Depends(get_ctx)):
     s = ctx.settings.analytics
     freq = freq or s.correlation_frequency
-    source, tickers_, start_ts, end_ts = _inputs(ctx, tickers, period, start, end, source)
+    source, tickers_, start_ts, end_ts, anchor = _inputs(ctx, tickers, period, start, end, source)
     benchmark = benchmark or tickers_[0]
-    closes = ctx.closes(list(dict.fromkeys([*tickers_, benchmark])), source, start_ts, end_ts)
+    closes = ctx.closes(list(dict.fromkeys([*tickers_, benchmark])), source, start_ts, end_ts, anchor)
     # One end date for every series: the latest date all of them have.
     common = min(c.dropna().index[-1] for c in closes.values())
     closes = {t: c.loc[:common] for t, c in closes.items()}
@@ -52,7 +54,7 @@ def compare(tickers: str = Tickers, benchmark: str | None = Query(None, descript
     if rebased.empty:
         raise bad_request("These series have no dates in common.")
     corr = an.correlation(wide, freq)
-    metrics = {t: _metrics(ctx, source, t, c, start_ts, end_ts) for t, c in closes.items() if t in tickers_}
+    metrics = {t: _metrics(ctx, source, t, c.dropna(), anchor) for t, c in closes.items() if t in tickers_}
     return {
         "tickers": tickers_, "names": {t: display_name(t, names(ctx)) for t in tickers_},
         "benchmark": benchmark, "frequency": freq, "end": common,
@@ -74,8 +76,8 @@ def relative_strength(a: str, b: str, start: date | None = None, end: date | Non
                       sma: int | None = Query(None, ge=2, le=1000, description="Defaults to the first SMA window in settings."),
                       ctx: AppContext = Depends(get_ctx)):
     """Ratio a/b rebased to 100: rising means a is outperforming b."""
-    source, (ta, tb), start_ts, end_ts = _inputs(ctx, f"{a},{b}", period, start, end, source)
-    closes = ctx.closes([ta, tb], source, start_ts, end_ts)
+    source, (ta, tb), start_ts, end_ts, anchor = _inputs(ctx, f"{a},{b}", period, start, end, source)
+    closes = ctx.closes([ta, tb], source, start_ts, end_ts, anchor)
     rs = an.relative_strength(closes[ta], closes[tb])
     windows = ctx.settings.analytics.sma_windows
     window = sma or (windows[0] if windows else None)
@@ -90,8 +92,8 @@ def rolling_correlation(a: str, b: str, start: date | None = None, end: date | N
                         freq: CorrFreq | None = None, ctx: AppContext = Depends(get_ctx)):
     s = ctx.settings.analytics
     window, freq = window or s.rolling_corr_window, freq or s.correlation_frequency
-    source, (ta, tb), start_ts, end_ts = _inputs(ctx, f"{a},{b}", period, start, end, source)
-    closes = ctx.closes([ta, tb], source, start_ts, end_ts)
+    source, (ta, tb), start_ts, end_ts, anchor = _inputs(ctx, f"{a},{b}", period, start, end, source)
+    closes = ctx.closes([ta, tb], source, start_ts, end_ts, anchor)
     rc = an.rolling_correlation(closes[ta], closes[tb], window, freq)
     return {"a": ta, "b": tb, "window": window, "frequency": freq, "series": series_payload(rc)}
 
@@ -138,8 +140,8 @@ def rolling(tickers: str = Tickers, start: date | None = None, end: date | None 
     if not windows or any(not 1 <= w <= 30 for w in windows):
         raise bad_request("years must be between 1 and 30.")
     target = s.analytics.target_cagr if target is None else target
-    source, tickers_, start_ts, end_ts = _inputs(ctx, tickers, period, start, end, source)
-    closes = ctx.closes(tickers_, source, start_ts, end_ts)
+    source, tickers_, start_ts, end_ts, anchor = _inputs(ctx, tickers, period, start, end, source)
+    closes = ctx.closes(tickers_, source, start_ts, end_ts, anchor)
     label = f"% of periods > {target * 100:g}%"
     out = {}
     for t, close in closes.items():

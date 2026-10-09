@@ -14,7 +14,7 @@ from indexvault import analytics as an
 from indexvault import data
 from indexvault.indices import NSE_NAMES, display_name, has_volume, series_kind
 
-from ..context import AppContext, get_ctx
+from ..context import AppContext, anchor_slice, get_ctx, period_anchor
 from ..errors import ApiError, bad_request, not_found
 from ..jsonutil import JsonableRoute, frame_payload
 from ..settings import Frequency
@@ -160,6 +160,10 @@ def get_series(
     cols = parse_columns(columns) if columns or series_kind(ticker) == "price" else list(TRI_DEFAULT_COLUMNS)
     start_ts, end_ts = ctx.date_range(period, start, end)
     daily = ctx.frame(ticker, source, start_ts, end_ts, warmup=warmup_for(cols, freq))
+    anchor = period_anchor(period or s.data.default_period, start)
+    if anchor and start_ts is not None:  # same first row as the summary/trailing figures
+        base = anchor_slice(daily, anchor, daily.index[-1]).index[0]
+        start_ts = min(start_ts, base)
     table = build_columns(daily, cols, freq, start_ts, s.analytics.trading_days)
     if table.empty:
         raise not_found(f"No {ticker} rows in the requested range.", ticker=ticker)
