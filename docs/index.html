@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IndexVault · Indian market index research, on your computer</title>
+  <meta name="description" content="A fast, local research app for Indian market indices: cache NIFTY, SENSEX, sectoral indices and India VIX, then analyse, compare and backtest SIPs. Free and open source.">
+  <meta property="og:title" content="IndexVault">
+  <meta property="og:description" content="Research-grade tables, charts and exports for Indian market indices. Runs on your computer. Free and open source.">
+  <meta property="og:image" content="https://samarth5704.github.io/indexvault/screenshots/hero-dashboard.png">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#0b0e14">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%235b8cff'/%3E%3Cpath d='M7 8l5 9 5-11' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preload" href="assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    /* Same design language as the app (docs/DESIGN.md): Midnight by default, Paper in light mode. */
+    @font-face { font-family: "Inter"; src: url("assets/fonts/inter-latin-wght.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+    @font-face { font-family: "JetBrains Mono"; src: url("assets/fonts/jetbrains-mono-latin-wght.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
+
+    :root {
+      color-scheme: dark;
+      --bg: #0b0e14; --surface: #121722; --surface-2: #182030; --surface-3: #1f2940;
+      --border: rgba(255, 255, 255, .08); --text: #e8ebf1; --text-2: #a3acbd; --text-muted: #6b7488;
+      --accent: #5b8cff; --accent-fg: #ffffff; --gain: #2fbf71; --loss: #f0616d; --warning: #fab219;
+      --shadow: 0 24px 60px rgba(0, 0, 0, .45);
+      --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+      --radius: 12px; --radius-sm: 6px; --max: 1160px; --gutter: 24px;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        color-scheme: light;
+        --bg: #f9f9f7; --surface: #fcfcfb; --surface-2: #f0efec; --surface-3: #e6e4df;
+        --border: rgba(11, 11, 11, .10); --text: #0b0b0b; --text-2: #52514e; --text-muted: #898781;
+        --accent: #2a78d6; --gain: #0f7b3f; --loss: #c62f3b; --shadow: 0 24px 60px rgba(0, 0, 0, .14);
+      }
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f9f9f7; --surface: #fcfcfb; --surface-2: #f0efec; --surface-3: #e6e4df;
+      --border: rgba(11, 11, 11, .10); --text: #0b0b0b; --text-2: #52514e; --text-muted: #898781;
+      --accent: #2a78d6; --gain: #0f7b3f; --loss: #c62f3b; --shadow: 0 24px 60px rgba(0, 0, 0, .14);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; animation: none !important; } }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.6 var(--font-ui); font-feature-settings: "cv11", "ss01"; -webkit-font-smoothing: antialiased; }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-sm); }
+    h1, h2, h3 { margin: 0; line-height: 1.15; letter-spacing: -0.02em; }
+    p { margin: 0; }
+    .wrap { width: min(var(--max), 100% - 2 * var(--gutter)); margin: 0 auto; }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .icon { width: 20px; height: 20px; flex: none; stroke: currentColor; stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .skip { position: absolute; left: -999px; top: 8px; padding: 8px 12px; background: var(--accent); color: var(--accent-fg); border-radius: var(--radius-sm); z-index: 10; }
+    .skip:focus { left: 8px; }
+
+    /* nav */
+    .nav { position: sticky; top: 0; z-index: 5; backdrop-filter: blur(10px); background: color-mix(in oklab, var(--bg) 82%, transparent); border-bottom: 1px solid var(--border); }
+    .nav .wrap { display: flex; align-items: center; gap: 16px; height: 60px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; font-size: 17px; }
+    .brand:hover { text-decoration: none; }
+    .brand svg { width: 28px; height: 28px; color: var(--accent); }
+    .nav-links { display: flex; gap: 22px; margin-left: auto; font-size: 14px; }
+    .nav-links a { color: var(--text-2); }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-2); cursor: pointer; }
+    .icon-btn:hover { color: var(--text); background: var(--surface-2); }
+    @media (max-width: 720px) { .nav-links { display: none; } .nav .icon-btn { margin-left: auto; } }
+
+    /* buttons */
+    .btn { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: var(--radius-sm); font-weight: 500; font-size: 15px; border: 1px solid transparent; }
+    .btn:hover { text-decoration: none; }
+    .btn.primary { background: var(--accent); color: var(--accent-fg); }
+    .btn.primary:hover { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
+    .btn.secondary { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+    .btn.secondary:hover { background: var(--surface-3); }
+
+    /* hero */
+    .hero { padding: 72px 0 40px; text-align: center; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-2); font-size: 13px; }
+    .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gain); }
+    .hero h1 { margin: 20px auto 16px; max-width: 16ch; font-size: clamp(36px, 6vw, 60px); font-weight: 650; }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .lede { max-width: 62ch; margin: 0 auto; color: var(--text-2); font-size: clamp(16px, 2vw, 19px); }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 28px; }
+    .ticker { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; margin-top: 28px; color: var(--text-muted); font-size: 13px; }
+    .ticker b { color: var(--text-2); font-weight: 500; }
+    .shot { margin-top: 48px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); background: var(--surface); }
+
+    /* sections */
+    section { padding: 72px 0; scroll-margin-top: 60px; }
+    #top { scroll-margin-top: 60px; }
+    .section-head { max-width: 640px; margin-bottom: 36px; }
+    .section-head h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 650; }
+    .section-head p { margin-top: 10px; color: var(--text-2); }
+    .kicker { display: block; margin-bottom: 8px; color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+
+    .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+    .feature { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .feature .badge { display: inline-grid; place-items: center; width: 38px; height: 38px; margin-bottom: 14px; border-radius: 10px; color: var(--accent); background: color-mix(in oklab, var(--accent) 14%, transparent); }
+    .feature h3 { font-size: 17px; font-weight: 600; }
+    .feature p { margin-top: 6px; color: var(--text-2); font-size: 15px; }
+
+    .pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 28px; margin: 40px 0 0; padding: 0; list-style: none; }
+    .pillars li { padding-left: 16px; border-left: 2px solid var(--accent); }
+    .pillars strong { display: block; font-weight: 600; }
+    .pillars span { color: var(--text-2); font-size: 15px; }
+
+    /* gallery */
+    .tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .tab { padding: 8px 14px; border: 0; border-radius: 7px; background: none; color: var(--text-2); font: 500 14px var(--font-ui); cursor: pointer; }
+    .tab:hover { color: var(--text); }
+    .tab[aria-selected="true"] { background: var(--surface-3); color: var(--text); }
+    .panel figure { margin: 0; }
+    .panel figcaption { margin-top: 14px; color: var(--text-2); font-size: 15px; }
+    .themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .themes figure { margin: 0; }
+    .themes a { display: block; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+    .themes figcaption { margin-top: 8px; font-size: 14px; color: var(--text-2); }
+    .themes figcaption b { color: var(--text); font-weight: 600; }
+    .phones { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+    .phones img { width: 260px; border: 1px solid var(--border); border-radius: 28px; box-shadow: var(--shadow); }
+    @media (max-width: 640px) { .themes { grid-template-columns: 1fr; } .phones img { width: min(260px, 100%); } }
+
+    /* quick start */
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .code { position: relative; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+    .code-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-2); font-size: 13px; font-weight: 500; }
+    .copy { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-2); font: 500 12px var(--font-ui); cursor: pointer; }
+    .copy:hover { color: var(--text); }
+    .copy .icon { width: 14px; height: 14px; }
+    pre { margin: 0; padding: 16px; overflow-x: auto; font: 13.5px/1.7 var(--font-mono); color: var(--text); }
+    pre .c { color: var(--text-muted); }
+    .note { margin-top: 18px; color: var(--text-2); font-size: 15px; }
+
+    /* caveats */
+    .caveats { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+    .caveats li { padding: 18px; border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-2); font-size: 15px; }
+    .caveats strong { display: block; margin-bottom: 4px; color: var(--text); font-weight: 600; }
+
+    /* footer */
+    .final { text-align: center; }
+    .final h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 650; }
+    .final p { margin: 12px auto 0; max-width: 56ch; color: var(--text-2); }
+    footer { padding: 32px 0 48px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 14px; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+    footer a { color: var(--text-2); }
+    @media (max-width: 640px) { :root { --gutter: 16px; } .hero { padding-top: 48px; } section { padding: 56px 0; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-logo" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5.5" fill="currentColor"/><path d="M7.5 8.5l4.5 8 4.5-10" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+    <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 10v10"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 6-7"/></symbol>
+    <symbol id="i-compare" viewBox="0 0 24 24"><path d="M3 18l5-6 4 3 9-10"/><path d="M3 21h18" opacity=".5"/><path d="M15 5h6v6"/></symbol>
+    <symbol id="i-rolling" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+    <symbol id="i-sip" viewBox="0 0 24 24"><ellipse cx="9" cy="6.5" rx="6" ry="2.5"/><path d="M3 6.5v4c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-4"/><path d="M9 15.5c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-4c0-1.4-2.7-2.5-6-2.5"/><path d="M9 15.5v3c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-3"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/></symbol>
+    <symbol id="i-health" viewBox="0 0 24 24"><path d="M19.5 13.5c1.4-1.4 2.5-3 2.5-5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2 1.1 3.6 2.5 5L12 21z"/><path d="M3.5 12H9l1.5-3 2.5 5 1.5-2h6"/></symbol>
+    <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8.5" ry="3"/><path d="M3.5 5v14c0 1.7 3.8 3 8.5 3s8.5-1.3 8.5-3V5"/><path d="M3.5 12c0 1.7 3.8 3 8.5 3s8.5-1.3 8.5-3"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  </svg>
+
+  <header class="nav">
+    <div class="wrap">
+      <a class="brand" href="#top" aria-label="IndexVault home"><svg aria-hidden="true"><use href="#i-logo"/></svg>IndexVault</a>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#features">Features</a><a href="#tour">Tour</a><a href="#start">Get started</a><a href="#caveats">Data notes</a>
+        <a href="https://github.com/Samarth5704/indexvault">GitHub</a>
+      </nav>
+      <button class="icon-btn" id="theme" type="button" aria-label="Switch to light theme"><svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg></button>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="hero wrap" id="top">
+      <span class="eyebrow"><span class="dot" aria-hidden="true"></span>Free &amp; open source · MIT licence</span>
+      <h1>Indian market research, <em>on your own computer</em></h1>
+      <p class="lede">IndexVault downloads NIFTY, SENSEX, sectoral indices and India VIX, keeps them in a local cache,
+        and turns them into research-grade tables, charts and exports. Every default, number and colour is yours to change.</p>
+      <div class="cta">
+        <a class="btn primary" href="#start"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>Get started</a>
+        <a class="btn secondary" href="https://github.com/Samarth5704/indexvault"><svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>View on GitHub</a>
+      </div>
+      <p class="ticker" aria-label="Indices included">
+        <span><b>NIFTY 50</b></span><span><b>SENSEX</b></span><span><b>NIFTY Bank</b></span><span><b>NIFTY IT</b></span>
+        <span><b>India VIX</b></span><span>+ 30 more, or any Yahoo ticker</span>
+      </p>
+      <div class="shot">
+        <img src="screenshots/hero-dashboard.png" width="1440" height="900"
+          alt="The IndexVault dashboard: snapshot cards for NIFTY 50, SENSEX, NIFTY Bank and NIFTY IT, a one-year NIFTY 50 chart, an India VIX gauge, a sector returns heatmap and a drawdown monitor.">
+      </div>
+    </div>
+
+    <section id="features" aria-labelledby="features-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="kicker">Ten tools, one selection</span>
+          <h2 id="features-title">Everything a research note needs</h2>
+          <p>Pick your series, range and frequency once in the top bar; every page uses them, and every view is a shareable link.</p>
+        </div>
+        <ul class="features">
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-dashboard"/></svg></span><h3>Dashboard</h3><p>A widget grid you arrange yourself: snapshots, mini charts, sector heatmap, VIX gauge, drawdowns, notes.</p></li>
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-table"/></svg></span><h3>Data Studio</h3><p>OHLCV at any frequency with derived columns, exported to Excel, CSV, zip or JSON. Save your export presets.</p></li>
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-chart"/></svg></span><h3>Analyse</h3><p>KPIs, trailing returns, price with SMAs and big moves, drawdowns, monthly heatmap, distribution, rolling volatility.</p></li>
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-compare"/></svg></span><h3>Compare</h3><p>Growth of 100, metrics with beta, correlation matrix, risk-vs-return, relative strength, rolling correlation.</p></li>
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-rolling"/></svg></span><h3>Rolling returns</h3><p>Every holding period of the same length, and how often it beat your target, in plain English.</p></li>
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-sip"/></svg></span><h3>SIP Lab</h3><p>Monthly SIPs with step-ups and top-ups, XIRR, lump-sum comparison and start-date sensitivity.</p></li>
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg></span><h3>Seasonality</h3><p>Month-of-year and weekday patterns, with an honest warning about how noisy they are.</p></li>
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-health"/></svg></span><h3>Data Health</h3><p>Gaps, stale prices, broken OHLC bars, duplicates and big moves, before you trust a series.</p></li>
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-database"/></svg></span><h3>Cache</h3><p>What's downloaded and how fresh it is, one-click updates, and a ticker health check.</p></li>
+          <li class="feature"><span class="badge"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></span><h3>Settings</h3><p>Every setting editable: four themes, your own themes and colour-blind-checked palettes, shortcuts, backup.</p></li>
+        </ul>
+        <ul class="pillars">
+          <li><strong>Indian conventions</strong><span>₹, lakh/crore and DD-MM-YYYY by default, all switchable.</span></li>
+          <li><strong>Private by design</strong><span>Runs on localhost. Your settings and data never leave your machine.</span></li>
+          <li><strong>Accessible</strong><span>Full keyboard control, focus rings, reduced motion, a table view for every chart.</span></li>
+          <li><strong>Fast</strong><span>Local cache, server-side memoisation, LTTB downsampling for long series.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="tour" aria-labelledby="tour-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="kicker">Take a look</span>
+          <h2 id="tour-title">A quick tour</h2>
+          <p>Real screenshots of the app running on live Yahoo Finance data.</p>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Pages">
+          <button class="tab" role="tab" type="button" aria-selected="true" aria-controls="panel" data-src="analyse" data-caption="Analyse: KPI cards, trailing returns and a price chart with moving averages and big-move markers.">Analyse</button>
+          <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="panel" data-src="compare" data-caption="Compare: growth of 100 for four indices, rebased to their first common date, with metrics side by side.">Compare</button>
+          <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="panel" data-src="rolling" data-caption="Rolling returns: every five-year period, how often it lost money, and how often it beat a 12% target.">Rolling</button>
+          <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="panel" data-src="sip-lab" data-caption="SIP Lab: invested vs value, XIRR and what the same money would have done as a lump sum.">SIP Lab</button>
+          <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="panel" data-src="seasonality" data-caption="Seasonality: average return by calendar month and weekday, with a caution note.">Seasonality</button>
+          <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="panel" data-src="data-studio" data-caption="Data Studio: daily OHLCV in Indian number format, ready to export.">Data Studio</button>
+          <button class="tab" role="tab" type="button" aria-selected="false" aria-controls="panel" data-src="settings" data-caption="Settings: themes, accent, density, motion and a live preview.">Settings</button>
+        </div>
+        <div class="panel" id="panel" role="tabpanel" aria-live="polite">
+          <figure>
+            <div class="shot" style="margin-top:0"><img id="panel-img" src="screenshots/analyse.png" width="1440" height="900" loading="lazy" alt="Analyse page screenshot"></div>
+            <figcaption id="panel-cap">Analyse: KPI cards, trailing returns and a price chart with moving averages and big-move markers.</figcaption>
+          </figure>
+        </div>
+
+        <div class="section-head" style="margin-top:72px">
+          <h2>Four themes, or make your own</h2>
+          <p>Each theme has a partner in the other mode. Change any colour token and save it as your own theme; chart palettes are checked for colour-blind separation as you edit.</p>
+        </div>
+        <div class="themes">
+          <figure><a href="screenshots/theme-midnight.png"><img src="screenshots/theme-midnight.png" width="1440" height="900" loading="lazy" alt="Dashboard in the Midnight theme"></a><figcaption><b>Midnight</b> · dark, the default</figcaption></figure>
+          <figure><a href="screenshots/theme-paper.png"><img src="screenshots/theme-paper.png" width="1440" height="900" loading="lazy" alt="Dashboard in the Paper theme"></a><figcaption><b>Paper</b> · light</figcaption></figure>
+          <figure><a href="screenshots/theme-terminal.png"><img src="screenshots/theme-terminal.png" width="1440" height="900" loading="lazy" alt="Dashboard in the Terminal theme"></a><figcaption><b>Terminal</b> · dark, all monospace</figcaption></figure>
+          <figure><a href="screenshots/theme-saffron.png"><img src="screenshots/theme-saffron.png" width="1440" height="900" loading="lazy" alt="Dashboard in the Saffron theme"></a><figcaption><b>Saffron</b> · light, warm</figcaption></figure>
+        </div>
+
+        <div class="section-head" style="margin-top:72px">
+          <h2>Works on your phone too</h2>
+          <p>Run it on your computer and open it from your phone's browser on the same Wi-Fi.</p>
+        </div>
+        <div class="phones">
+          <img src="screenshots/mobile-dashboard.png" width="780" height="1688" loading="lazy" alt="Dashboard on a phone">
+          <img src="screenshots/mobile-analyse.png" width="780" height="1688" loading="lazy" alt="Analyse on a phone">
+        </div>
+      </div>
+    </section>
+
+    <section id="start" aria-labelledby="start-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="kicker">About five minutes</span>
+          <h2 id="start-title">Get started</h2>
+          <p>All you need is Python 3.11 or newer. The chart libraries and fonts come with the code; there's no build step.</p>
+        </div>
+        <div class="steps">
+          <div class="code">
+            <div class="code-head"><span>Windows (PowerShell)</span><button class="copy" type="button" data-copy="win"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>Copy</button></div>
+<pre id="win">git clone https://github.com/Samarth5704/indexvault.git
+cd indexvault\backend
+py -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.lock
+.venv\Scripts\python -m uvicorn api.main:app --port 8000</pre>
+          </div>
+          <div class="code">
+            <div class="code-head"><span>macOS / Linux</span><button class="copy" type="button" data-copy="nix"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>Copy</button></div>
+<pre id="nix">git clone https://github.com/Samarth5704/indexvault.git
+cd indexvault/backend
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.lock
+.venv/bin/python -m uvicorn api.main:app --port 8000</pre>
+          </div>
+        </div>
+        <p class="note">Then open <span class="mono">http://localhost:8000</span>. No internet? Switch the source to <b>Demo</b> for synthetic data.
+          Prefer notebooks? The core is a plain Python library and a small CLI; see the
+          <a href="https://github.com/Samarth5704/indexvault#use-it-as-a-library">README</a>.</p>
+      </div>
+    </section>
+
+    <section id="caveats" aria-labelledby="caveats-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="kicker">Read before you rely on it</span>
+          <h2 id="caveats-title">Data notes</h2>
+        </div>
+        <ul class="caveats">
+          <li><strong>Price indices, not total return</strong>Yahoo's index levels exclude dividends; total return is typically about 1–1.5% a year higher.</li>
+          <li><strong>Unofficial source</strong>Yahoo Finance tickers can change or lose history. The app flags missing data and has a ticker health check.</li>
+          <li><strong>Personal research only</strong>Market data comes from Yahoo Finance via yfinance and is subject to Yahoo's terms.</li>
+          <li><strong>Not investment advice</strong>Past returns, rolling statistics and seasonality don't predict future results.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="final" aria-labelledby="final-title">
+      <div class="wrap">
+        <h2 id="final-title">Ready to dig in?</h2>
+        <p>Clone it, run it, make it yours. Issues and ideas are welcome on GitHub.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/Samarth5704/indexvault"><svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>Get the code</a>
+          <a class="btn secondary" href="#start">Setup steps</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>IndexVault · <a href="https://github.com/Samarth5704/indexvault/blob/main/LICENSE">MIT licence</a> © 2026 Samarth</span>
+      <span>Charts: <a href="https://www.tradingview.com/lightweight-charts/">TradingView Lightweight Charts™</a> &amp; <a href="https://echarts.apache.org/">Apache ECharts</a> · Fonts: Inter, JetBrains Mono (OFL)</span>
+    </div>
+  </footer>
+
+  <script>
+    // Theme toggle (remembered per browser; falls back to the OS setting).
+    (() => {
+      const root = document.documentElement, btn = document.getElementById("theme");
+      const os = matchMedia("(prefers-color-scheme: light)");
+      let saved = null;
+      try { saved = localStorage.getItem("iv-site-theme"); } catch {}
+      const shown = () => root.dataset.theme || (os.matches ? "light" : "dark");
+      function paint() {
+        const light = shown() === "light";
+        btn.setAttribute("aria-label", light ? "Switch to dark theme" : "Switch to light theme");
+        btn.querySelector("use").setAttribute("href", light ? "#i-moon" : "#i-sun");
+        document.querySelector('meta[name="theme-color"]').content = light ? "#f9f9f7" : "#0b0e14";
+      }
+      if (saved === "light" || saved === "dark") root.dataset.theme = saved;
+      btn.addEventListener("click", () => {
+        root.dataset.theme = shown() === "light" ? "dark" : "light";
+        try { localStorage.setItem("iv-site-theme", root.dataset.theme); } catch {}
+        paint();
+      });
+      os.addEventListener("change", paint);
+      paint();
+    })();
+
+    // Tour tabs: arrow keys move between tabs.
+    (() => {
+      const tabs = [...document.querySelectorAll(".tab")];
+      const img = document.getElementById("panel-img"), cap = document.getElementById("panel-cap");
+      function select(tab) {
+        tabs.forEach((t) => { const on = t === tab; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; });
+        img.src = `screenshots/${tab.dataset.src}.png`;
+        img.alt = `${tab.textContent} page screenshot`;
+        cap.textContent = tab.dataset.caption;
+      }
+      tabs.forEach((t, i) => {
+        t.tabIndex = i === 0 ? 0 : -1;
+        t.addEventListener("click", () => select(t));
+        t.addEventListener("keydown", (e) => {
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+          const next = tabs[(i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
+          next.focus(); select(next); e.preventDefault();
+        });
+      });
+    })();
+
+    // Copy buttons.
+    document.querySelectorAll(".copy").forEach((b) => b.addEventListener("click", async () => {
+      const text = document.getElementById(b.dataset.copy).textContent;
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; } catch {}
+      if (!ok) {
+        const r = document.createRange(); r.selectNodeContents(document.getElementById(b.dataset.copy));
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      }
+      b.lastChild.textContent = ok ? "Copied" : "Selected";
+      b.querySelector("use").setAttribute("href", "#i-check");
+      setTimeout(() => { b.lastChild.textContent = "Copy"; b.querySelector("use").setAttribute("href", "#i-copy"); }, 1600);
+    }));
+  </script>
+</body>
+</html>
