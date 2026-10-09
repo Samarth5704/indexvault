@@ -69,7 +69,7 @@ libraries and fonts are already in `frontend/vendor/` and `frontend/fonts/`.
 
 **Windows (PowerShell)**
 ```powershell
-git clone <this repo> indexvault
+git clone https://github.com/Samarth5704/indexvault.git
 cd indexvault\backend
 py -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.lock
@@ -78,7 +78,7 @@ py -m venv .venv
 
 **macOS / Linux**
 ```bash
-git clone <this repo> indexvault
+git clone https://github.com/Samarth5704/indexvault.git
 cd indexvault/backend
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.lock
