@@ -5,6 +5,8 @@ sectoral indices and India VIX from free sources, cache them on your computer, a
 them into research-grade tables, charts and exports. Every default, number and colour
 is yours to change.
 
+**Website:** [samarth5704.github.io/indexvault](https://samarth5704.github.io/indexvault/), a tour of the app with screenshots and setup steps.
+
 ![IndexVault dashboard in the Midnight theme](docs/screenshots/hero-dashboard.png)
 
 FastAPI + pandas on the back, hand-written HTML/CSS/JS on the front: no framework, no
