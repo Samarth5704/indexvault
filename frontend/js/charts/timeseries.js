@@ -11,6 +11,7 @@ import { lightweight } from "./vendor.js";
 // past FULL_DETAIL_SPAN of the range swaps the real data back in.
 const THIN_ABOVE = 2500;
 const FULL_DETAIL_SPAN = 0.4;
+const MIN_BAR_SPACING = 0.2; // px; lowered per chart when the whole range needs it
 
 /** LW time (string | BusinessDay | UTCTimestamp) -> "YYYY-MM-DD". */
 export function isoTime(t) {
@@ -46,7 +47,7 @@ export async function createTimeChart(container, { height = 320, valueFormat, ti
   // of daily bars). So re-fit once the size arrives, unless the user has zoomed.
   let pendingFit = false, userMoved = false;
   const sizer = new ResizeObserver(([entry]) => {
-    if (pendingFit && !userMoved && entry.contentRect.width > 0) setTimeout(() => chart.timeScale().fitContent(), 0);
+    if (pendingFit && !userMoved && entry.contentRect.width > 0) setTimeout(() => { fitSpacing(); chart.timeScale().fitContent(); }, 0);
   });
   sizer.observe(container);
   container.addEventListener("wheel", () => { userMoved = true; }, { passive: true });
@@ -104,12 +105,23 @@ export async function createTimeChart(container, { height = 320, valueFormat, ti
       const values = new Map(def.data.map((d) => [isoTime(d.time), d])); // readouts use the full data
       live.set(def.id, { api, def, shown, times: shown.map((d) => isoTime(d.time)), values, markers });
     }
+    fitSpacing();
     if (range) chart.timeScale().setVisibleLogicalRange(range);
     else {
       chart.timeScale().fitContent();
       pendingFit = true;
-      setTimeout(() => { if (!userMoved) chart.timeScale().fitContent(); }, 50);
+      setTimeout(() => { if (!userMoved) { fitSpacing(); chart.timeScale().fitContent(); } }, 50);
     }
+  }
+
+  // fitContent() never goes below minBarSpacing, so on a narrow pane a long range
+  // (10Y daily ≈ 2,500 bars in ≈ 260px at 390px) would show only its last few years.
+  // Lower the minimum just enough for every bar to fit the current width.
+  function fitSpacing() {
+    const width = chart.timeScale().width();
+    if (!width) return;
+    const bars = Math.max(0, ...[...live.values()].map((s) => s.shown.length)) + 3; // + rightOffset and a spare
+    chart.applyOptions({ timeScale: { minBarSpacing: Math.min(MIN_BAR_SPACING, width / bars) } });
   }
 
   /** def -> data to draw. Long series are LTTB-thinned; several thinned series on one
@@ -231,7 +243,7 @@ function baseOptions(LW, { valueFormat, priceTicks, timeTick }) {
     },
     grid: { vertLines: { color: t.grid }, horzLines: { color: t.grid } },
     rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.08 } },
-    timeScale: { borderVisible: false, rightOffset: 2, minBarSpacing: 0.2, tickMarkFormatter: timeTick },
+    timeScale: { borderVisible: false, rightOffset: 2, minBarSpacing: MIN_BAR_SPACING, tickMarkFormatter: timeTick },
     crosshair: {
       mode: LW.CrosshairMode.Normal,
       vertLine: { color: t.axis, labelBackgroundColor: t.surface2 },
